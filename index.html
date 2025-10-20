@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Simulación Monte Carlo</title>
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <h2 id = "titulo">Simulación Monte Carlo</h2>
+
+  <h4 style="margin-bottom: 12px;">Parámetros</h4>
+  <label>Fotones: <input id="Nphotons" type="number" value="1000000" min="1"></label>
+  <label>Centro (cm): <input id="Rxy" type="number" value="0.065" step="0.0001"></label>
+  <label>Capas: <input id="NC" type="number" value="3" min="1"></label>
+  <label>HTumor (op): <input id="theight" type="number" value = "0.15" min = "0"></label>
+  <button id="init">Crear tabla</button> <input id="fileCSV" type="file" accept=".csv"></label>
+
+  <table id="tabla" aria-label="Capas">
+    <thead>
+      <tr>
+        <th>#</th><th>Tipo</th><th>µa</th><th>µs</th><th>g</th><th>nt</th><th>Z end o radio (cm)</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <br>
+
+  <button id="run">Ejecutar simulación</button>
+
+  <h4>Simulación</h4>
+  <div id="contenedor">
+    <div id="salida"></div>
+    <!-- Vista 3D esquemática -->
+    <div id="vista3D" style="margin-top:20px;">
+    <canvas id="canvas3D" ></canvas>
+    </div>
+  </div>
+
+  <div class="mc-summary">
+    <div class="text">
+        <h2>Simulación de Monte Carlo en Interacciones Luz–Tejido</h2>
+
+        <h3>Introducción general</h3>
+        <p>
+            La simulación implementada en este proyecto está basada en los principios de la <strong>teoría del transporte radiativo</strong>,
+            que describe la propagación de la luz en medios turbios o altamente dispersivos, como los tejidos biológicos.
+            En estos medios, la luz experimenta múltiples fenómenos ópticos simultáneos: <em>absorción</em>,
+            <em>dispersión</em>, <em>reflexión</em> y <em>refracción</em>, tal y como se ve en la figura 1.
+        </p>
+
+        <p>
+            Los tejidos humanos no son medios transparentes, sino sistemas ópticamente complejos formados por células, orgánulos y
+            estructuras que desvían la luz en direcciones impredecibles. Por ello, las soluciones analíticas de las ecuaciones de transporte
+            son difíciles de obtener. En su lugar, se utilizan <strong>métodos de simulación Monte Carlo</strong>, que reproducen
+            el comportamiento de la luz mediante un enfoque probabilístico y estocástico.
+        </p>
+
+        <h3>Parámetros ópticos del tejido</h3>
+        <p>
+            Cada capa del modelo tisular se caracteriza por cuatro parámetros fundamentales:
+        </p>
+        <ul>
+            <li><strong>µ<sub>a</sub>:</strong> coeficiente de absorción, que mide la probabilidad de que un fotón sea absorbido por unidad de longitud.</li>
+            <li><strong>µ<sub>s</sub>:</strong> coeficiente de dispersión, que representa la probabilidad de cambio de dirección por unidad de longitud.</li>
+            <li><strong>g:</strong> factor de anisotropía, que indica el grado de direccionalidad del esparcimiento.</li>
+            <li><strong>n<sub>t</sub>:</strong> índice de refracción, que determina cómo cambia la velocidad de la luz en cada medio.</li>
+        </ul>
+
+        <p>
+            A partir de estos parámetros se define el <strong>albedo</strong>, dado por µ<sub>s</sub> / (µ<sub>a</sub> + µ<sub>s</sub>),
+            que expresa la fracción de energía que se dispersa frente a la que se absorbe, misma que se aprecia en la figura 2.
+        </p>
+
+        <h3>Descripción del algoritmo Monte Carlo</h3>
+        <p>
+            El algoritmo Monte Carlo divide la trayectoria de un fotón en una secuencia de eventos de propagación y dispersión, similar a lo que se ve en la figura 3.
+            En cada paso:
+        </p>
+        <p>
+            Se genera un número aleatorio para calcular la distancia libre media (<em>step size</em>) según la distribución
+            <code>s = -ln(ξ)/(µ<sub>a</sub> + µ<sub>s</sub>)</code>, donde ξ es una variable aleatoria uniforme entre 0 y 1.
+            El fotón avanza esa distancia, pierde una fracción de su energía proporcional a µ<sub>a</sub>, y cambia de dirección
+            según la función de fase de Henyey–Greenstein, que aproxima la dispersión anisotrópica en tejidos biológicos.
+        </p>
+
+        <p>
+            Este proceso continúa hasta que el peso del fotón cae por debajo de un umbral, aplicándose la llamada “ruleta rusa”
+            para decidir si el fotón muere o sobrevive con peso ajustado. Se repite el procedimiento para millones de fotones,
+            acumulando la energía depositada en cada región del tejido.
+        </p>
+        <p>
+            El proceso entero está resumido en la ilustración de la figura 4.
+        </p>
+
+        <h3>Implementación en el código</h3>
+        <p>
+            En el código presentado, el modelo permite definir libremente el número de capas, sus propiedades ópticas y las dimensiones
+            en centímetros. Se pueden incluir <strong>capas planas (slabs)</strong> y una o más <strong>capas esféricas</strong> que simulen
+            tumores o estructuras internas.
+        </p>
+
+        <p>
+            La simulación registra la energía absorbida en cada capa y calcula la fracción total de energía perdida.
+            Los resultados se presentan numéricamente y mediante una representación esquemática a escala, donde las capas aparecen
+            coloreadas según su tipo (por ejemplo, músculo, grasa, piel o tumor).
+        </p>
+
+        <h3>Interpretación física</h3>
+        <p>
+            De acuerdo con la teoría de transporte óptico y los modelos mostrados en las diapositivas,
+            la distribución final de energía absorbida representa la <strong>fluencia de luz</strong> dentro del tejido
+            (<em>Φ</em> en W/cm²), y la acumulación local se interpreta como la <strong>densidad de potencia absorbida</strong>
+            (<em>Q</em> en W/cm³). Estas magnitudes son clave para aplicaciones como la
+            <em>terapia fotodinámica</em> y la <em>dosimetría óptica</em> en el tratamiento de tumores superficiales.
+        </p>
+
+        <h3>En resumen</h3>
+        <p>
+            La simulación Monte Carlo implementada constituye una herramienta numérica robusta y flexible para
+            reproducir la propagación de la luz en medios biológicos. Su fundamento teórico se basa en la ecuación de transporte
+            radiativo, y su fortaleza radica en que puede adaptarse fácilmente a tejidos multicapa y estructuras irregulares
+            donde los métodos analíticos resultan inviables.
+        </p>
+    </div>
+    <div class="imagenes">
+        <img src="img1.png">
+        <p>Figura 1: Transporte de luz en medios turbios y transparentes.</p>
+        <img src="img2.png">
+        <p>Figura 2: Descripción de los valores ópticos en tejidos.</p>
+        <img src="img3.png">
+        <p>Figura 3: Representación de la ecuación de transporte en tejido biológico.</p>
+        <img src="img4.png">
+        <p>Figura 4: Diagrama de flujo de la simulación de Monte Carlo.</p>
+    </div>
+</div>
+<div class="pie">
+    <h3>
+        Programa hecho por Eduardo Gracidas Reyes el domingo 19 de Octubre del 2025
+    </h3>
+</div>
+
+  <script src="index.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Visor 3D</title>
+  <style>
+    html,body{margin:0;height:100%;background:#1C1C1C;font-family:system-ui,Arial}
+    #app{position:fixed;inset:0}
+    #hud{
+      position:fixed;top:12px;left:12px;background:rgba(255,255,255,.95);
+      border:1px solid #ddd;border-radius:10px;padding:10px 12px;
+      box-shadow:0 6px 18px rgba(0,0,0,.12);font-size:13px;line-height:1.5
+    }
+    #warn{color:#a42525;font-weight:600;margin-top:6px}
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="hud">
+    <strong>Modelo 3D</strong><br>
+    Arrastra para rotar, rueda para zoom.
+    <div>
+        <p><b>Energía por capa: </b></p>
+        <ul id="capas">
+
+        </ul>
+        <p>
+            <b>Energía perdida: </b>
+            <i style="color:red" id="energyloss"></i>
+        </p>
+    </div>
+    <div id="warn"></div>
+  </div>
+
+  <!-- Three.js (legacy, sin módulos) -->
+  <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+  const warnEl = document.getElementById('warn');
+
+  // --- escena básica ---
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x1C1C1C, 1);
+  // Respetar nuestro orden de dibujado
+  renderer.sortObjects = false;
+  document.getElementById('app').appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 2000);
+  camera.position.set(0, 1.8, 6);
+  scene.add(camera);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  // Iluminación sencilla
+  scene.add(new THREE.AmbientLight(0xffffff, 1));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.1);
+  dir.position.set(4,6,5);
+  scene.add(dir);
+
+  // --- colores por tipo ---
+  const COLORS = {
+    piel:"#F8CFCF", dermis:"#F8CFCF", grasa:"#FFF2B0",
+    musculo:"#E57373","músculo":"#E57373", tejido:"#F8E0C0",
+    tumor:"#B71C1C", generico:"#F6E6D8"
+  };
+  const colTipo = t=>{
+    t=String(t||"").toLowerCase();
+    if(t.includes("tumor")) return COLORS.tumor;
+    if(t.includes("grasa")||t.includes("adiposo")) return COLORS.grasa;
+    if(t.includes("musculo")||t.includes("músculo")) return COLORS.musculo;
+    if(t.includes("dermis")||t.includes("piel")) return COLORS.piel;
+    if(t.includes("tejido")) return COLORS.tejido;
+    return COLORS.generico;
+  };
+
+  const root = new THREE.Group(); scene.add(root);
+  function clearRoot(){
+    while(root.children.length){
+      const o = root.children.pop();
+      o.traverse?.(n=>{
+        n.geometry?.dispose?.();
+        if(n.material){
+          if(Array.isArray(n.material)) n.material.forEach(m=>m.dispose?.());
+          else n.material.dispose?.();
+        }
+      });
+      scene.remove(o);
+    }
+    scene.add(root);
+  }
+
+  // --- construir modelo ---
+  // payload esperado:
+  // {
+  //   Rxy: number (cm),
+  //   zBound: number[] (acumulado, cm),
+  //   tipo: string[] (solo slabs),
+  //   tumorCenterZ: number (cm),
+  //   tumorRadius: number (cm),
+  //   tumorColor?: string (hex)       <-- opcional
+  //   shellRadii?: number[]           <-- opcional, radios extra para concéntricas
+  // }
+  function build(payload){
+  const capas = document.getElementById("capas");
+  payload.slabIdx.forEach((i)=>{
+    let li = document.createElement("li");
+    li.innerText = payload.tipo[i] + ":  " +String(payload.energy[i]);
+    capas.appendChild(li);
+  });
+
+  if(payload.tipo.indexOf("tumor") != -1){
+    let li = document.createElement("li");
+    li.innerText = "Tumor: " + payload.energy[payload.tipo.indexOf("tumor")];
+    capas.appendChild(li);
+  }
+
+  document.getElementById("energyloss").innerText = String(payload.energyloss);
+
+  const {
+    Rxy,
+    zBound,        // [0, z1, z2, ..., H] cm
+    slabIdx = [],  // índices de filas que son slabs (siempre en el mismo orden que zBound-1)
+    tipo = [],     // nombres por capa slab (longitud = zBound.length - 1)
+    spheres = [],  // [{ index, radius, tipo }], radios en cm
+    tumorCenterZ,  // centro común (z) para TODAS las esferas
+    tumorColor,    // opcional, color tumor (hex string/number)
+    energy = []    // opcional, energía por índice de fila (slabs/esferas)
+  } = payload || {};
+
+  // limpieza escena
+  clearRoot();
+  warnEl.textContent = "";
+
+  // validaciones mínimas
+  if (!Array.isArray(zBound) || zBound.length < 2) return;
+  const R = Number(Rxy);
+  const H = zBound[zBound.length - 1];
+  if (!isFinite(R) || R <= 0 || !isFinite(H) || H <= 0) return;
+
+  // utilidades
+  const width = 2 * R, depth = 2 * R;
+  const zToY = z => (H / 2) - z; // superficie arriba
+
+  // Marco
+  {
+    const frameGeo = new THREE.BoxGeometry(width, H, depth);
+    const frame = new THREE.LineSegments(
+      new THREE.EdgesGeometry(frameGeo),
+      new THREE.LineBasicMaterial({ color: 0x888888 })
+    );
+    frame.renderOrder = 0;
+    root.add(frame);
+  }
+
+  // ----- SLABS (rectángulos) -----
+  // Si NO usas slabIdx, asumimos slabs = todos los intervalos de zBound.
+  const useIdx = (Array.isArray(slabIdx) && slabIdx.length === (zBound.length - 1))
+    ? slabIdx
+    : Array.from({length: zBound.length - 1}, (_, i) => i);
+
+  for (let k = 0; k < zBound.length - 1; k++) {
+    const z1 = zBound[k], z2 = zBound[k + 1];
+    const h  = Math.max(1e-4, z2 - z1);
+    const y  = zToY((z1 + z2) / 2);
+
+    const idxFila = useIdx[k] ?? k; // índice de fila “real” (por si tu tabla no coincide uno-a-uno)
+    const nombre = tipo[idxFila] ?? `capa ${k+1}`;
+    const mat = new THREE.MeshStandardMaterial({
+      color: colTipo(nombre),
+      transparent: true, opacity: 0.60,
+      depthTest: true, depthWrite: true, side: THREE.DoubleSide
+    });
+
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(width, h, depth), mat);
+    slab.position.set(0, y, 0);
+    slab.renderOrder = 1;
+    root.add(slab);
+
+    const edge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(width, h, depth)),
+      new THREE.LineBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.25 })
+    );
+    edge.position.copy(slab.position);
+    edge.renderOrder = 1;
+    root.add(edge);
+
+    // (Opcional) Etiqueta simple 2D con energía por slab si llega
+    if (Number.isFinite(energy[idxFila])) {
+      // puedes añadir aquí un overlay HTML si lo deseas
+      // p.ej. addHtmlLabel(slab.position, `${nombre}: E=${energy[idxFila].toExponential(3)}`);
+    }
+  }
+
+  // ----- ESFERAS (tumor + capas concéntricas) -----
+  // Todas centradas en el MISMO z (tumorCenterZ).
+  if (Array.isArray(spheres) && spheres.length) {
+    const eps = 1e-6;
+
+    // Aseguramos que el centro cae dentro de algún slab
+    let zc = Number(tumorCenterZ);
+    if (!isFinite(zc)) zc = 0;
+
+    let iSlab = -1;
+    for (let i = 0; i < zBound.length - 1; i++) {
+      if (zc >= zBound[i] && zc < zBound[i + 1]) { iSlab = i; break; }
+    }
+    if (iSlab === -1 && Math.abs(zc - H) < 1e-9) {
+      zc = H - eps;
+      for (let i = 0; i < zBound.length - 1; i++) {
+        if (zc >= zBound[i] && zc < zBound[i + 1]) { iSlab = i; break; }
+      }
+    }
+    if (iSlab === -1) { iSlab = 0; zc = (zBound[0] + zBound[1]) / 2; }
+
+    const z1 = zBound[iSlab], z2 = zBound[iSlab + 1];
+    const yCenter = zToY(zc);
+
+    // Colores
+    const tumorCol = (typeof tumorColor === 'string' || typeof tumorColor === 'number')
+      ? tumorColor
+      : '#ff1744';
+    const shellCol = '#7FC5D6';
+
+    // Ordena por radio ascendente para que se vean bien
+    const sorted = spheres.slice().sort((a, b) => a.radius - b.radius);
+
+    sorted.forEach(s => {
+      const rawR = Number(s.radius);
+      if (!isFinite(rawR) || rawR <= 0) return;
+
+      // Recorte: quepa dentro del slab del centro
+      const maxR = Math.max(1e-4, Math.min(zc - z1, z2 - zc) - eps);
+      const r = Math.min(rawR, maxR);
+
+      const isTumor = /tumor/i.test(String(s.tipo || ""));
+      const baseColor = isTumor ? tumorCol : shellCol;
+
+      // Esfera semitransparente
+      const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(r, 48, 32),
+        new THREE.MeshStandardMaterial({
+          color: baseColor,
+          transparent: true,
+          opacity: isTumor ? 0.90 : 0.40, // tumor + intenso
+          depthTest: true, depthWrite: false, side: THREE.DoubleSide
+        })
+      );
+      mesh.position.set(0, yCenter, 0);
+      mesh.renderOrder = 2;
+      root.add(mesh);
+
+      // Contorno para distinguir radios
+      const wire = new THREE.Mesh(
+        new THREE.SphereGeometry(r, 24, 16),
+        new THREE.MeshBasicMaterial({
+          color: baseColor,
+          wireframe: isTumor ? false : true, opacity: isTumor ? 0.9 : 0.5
+        })
+      );
+      wire.position.copy(mesh.position);
+      wire.renderOrder = 3;
+      root.add(wire);
+
+      // (Opcional) energía de esa “fila” (si tu energy indexa también esferas)
+      const eVal = energy[s.index];
+      if (Number.isFinite(eVal)) {
+        // addHtmlLabel(mesh.position, `${s.tipo}: E=${eVal.toExponential(3)}`);
+      }
+    });
+  }
+
+  // ----- encuadre de cámara -----
+  const box3 = new THREE.Box3().setFromObject(root);
+  const size = new THREE.Vector3(); box3.getSize(size);
+  const center = new THREE.Vector3(); box3.getCenter(center);
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const fitDist = maxDim * 1.6 / Math.tan((camera.fov*Math.PI/180)/2);
+  camera.position.set(center.x + maxDim * 0.6, center.y + maxDim * 0.6, center.z + fitDist);
+  controls.target.copy(center);
+  controls.update();
+}
+
+  // Loop
+  window.addEventListener('resize', ()=>{
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  });
+  (function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene,camera); })();
+
+  // postMessage desde tu app
+  let started=false;
+  function maybeStartOnce(payload){ if(started) return; started=true; build(payload); }
+  window.addEventListener('message', ev=>{
+    if(!ev?.data || ev.data.type!=="mc3d") return;
+    maybeStartOnce(ev.data.payload);
+  });
+
+  // demo si se abre solo (puedes borrar este bloque en producción)
+  setTimeout(()=>{
+    if(started) return;
+    maybeStartOnce({
+      Rxy: 1.0,
+      zBound: [0, 0.3, 0.6, 0.9, 1.2],
+      tipo: ["grasa","músculo","piel","piel"],
+      tumorCenterZ: 0.15,
+      tumorRadius: 0.12,
+      tumorColor: "#ff1744",
+      shellRadii: [0.08, 0.1] // opcional: capas concéntricas
+    });
+  }, 300);
+  </script>
+</body>
+</html>

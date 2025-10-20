@@ -1,0 +1,91 @@
+body { 
+    font-family: sans-serif; margin: 10px; 
+    margin-top: 0;
+}
+label {
+     margin-right: 10px; 
+}
+table {
+     border-collapse: collapse; margin-top: 10px; width: 100%;
+}
+th, td { 
+    border: 1px solid #ccc; padding: 6px; text-align: center; 
+}
+#titulo{
+    text-align: center;
+    background-color: #01a66a;
+    padding:17px;
+    color:#ffffff;
+    margin-top:0;
+    font-family:Verdana, Geneva, Tahoma, sans-serif;
+}
+#salida { 
+    margin-top: 20px; font-size: 1.05em; white-space: pre; 
+}
+#contenedor{
+    display: flex;
+    justify-content: space-around;
+    width:100%;
+    border: 1px solid #000;
+    margin-top: 10px;
+    background-color: #e0fbf1;
+}
+#canvas3D { width: 100%; height: 420px; display:block; background-color: #fff;margin-bottom: 20px;}
+input[type=button], input[type=submit], input[type=reset], input[type="file"]::file-selector-button,button {
+    border-radius: 10px;
+    padding:8px;
+    transition: 1s;
+    font-weight: bold;
+}
+input[type=text],input[type=number]{
+    text-align: center;
+}
+button:hover{
+    cursor: pointer;
+    background-color: #01a66a;
+    color:#fff;
+}
+input[type='file']::file-selector-button:hover{
+    cursor: pointer;
+    background-color: #01a66a;
+    color:#fff;
+}
+ul{
+    line-height: 1.75rem;
+}
+.mc-summary{
+    width:100%;
+    text-align: justify;
+    display: flex;
+}
+.mc-summary h3{
+    font-size: 18px;
+}
+.mc-summary .text{
+    width:55%
+}
+.mc-summary img{
+    width:400px;
+    height: 300px;
+}
+.mc-summary .imagenes{
+    margin-top: 6.2rem;
+    margin: auto;
+    text-align: center;
+}
+.mc-summary .imagenes p{
+    font-weight: bold;
+    margin-bottom: 1rem;
+}
+.pie{
+    width: cover;
+    padding:25px;
+    margin-top: 2rem;
+    background-color: #01a66a;
+}
+.pie h3{
+    margin:0;
+    color:#fff;
+    font-size: 15px;
+    text-align: center;
+}
