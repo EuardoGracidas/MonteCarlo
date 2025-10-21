@@ -548,7 +548,12 @@ document.addEventListener("DOMContentLoaded", function () {
       tumorCenterZ:tumorCenterZ,
       energyloss:lost.toFixed(6)
     };
-    open3DViewer(threePayload);
+    
+    try{
+      open3DViewer(threePayload);
+    }catch{
+      console.warn("Tiempo de espera excesivo");
+    }
 
 
     salida.innerHTML =
