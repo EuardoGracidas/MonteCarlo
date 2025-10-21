@@ -2,18 +2,23 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>Simulación Monte Carlo</title>
+  <title>Monte Carlo Simulation</title>
   <link rel="stylesheet" href="index.css">
 </head>
 <body>
-  <h2 id = "titulo">Simulación Monte Carlo</h2>
+  <h2 id = "titulo">Monte Carlo Simulation</h2>
 
-  <h4 style="margin-bottom: 12px;">Parámetros</h4>
-  <label>Fotones: <input id="Nphotons" type="number" value="1000000" min="1"></label>
-  <label>Centro (cm): <input id="Rxy" type="number" value="0.065" step="0.0001"></label>
-  <label>Capas: <input id="NC" type="number" value="3" min="1"></label>
-  <label>HTumor (op): <input id="theight" type="number" value = "0.15" min = "0"></label>
-  <button id="init">Crear tabla</button> <input id="fileCSV" type="file" accept=".csv"></label>
+
+    <h4 style="margin-bottom: 12px;">Parámetros</h4>
+    <label>Fotones: <input id="Nphotons" type="number" value="1000000" min="1"></label>
+    <label>Centro (cm): <input id="Rxy" type="number" value="0.065" step="0.0001"></label>
+    <label>Capas: <input id="NC" type="number" value="3" min="1"></label>
+    <label>PosYTumor (opcional): <input id="theight" type="number" value = "0.15" min = "0"></label>
+    <label>λ (nm): <input id="lambda" type="number" value="400" min = 1> </label>
+    <button id="init">Crear tabla</button> 
+    <br>
+    <label>Importar parámetros ópticos (opcional): </label><input id="fileCSV" type="file" accept=".csv"></label>
+
 
   <table id="tabla" aria-label="Capas">
     <thead>
@@ -37,108 +42,157 @@
     </div>
   </div>
 
+  <div class="explanation">
+  <h3>About This Simulation</h3>
+  <p>
+    This simulation uses a Monte Carlo–based algorithm designed to model light–tissue interactions. 
+    The user must manually provide the optical properties of each tissue layer to be simulated 
+    (<em>µ<sub>a</sub></em>, <em>µ<sub>s</sub></em>, <em>g</em>, and <em>n<sub>t</sub></em>), 
+    as well as parameters such as tissue type, number of photons, number of layers, 
+    wavelength, and, if applicable, the tumor center and its distance from the surface layer.
+  </p>
+
+  <h4>¡Important Considerations!</h4>
+  <ul>
+    <li>
+      Although there is no limit to the number of layers, the graphical representation may visually 
+      “cut off” some layers. This does not affect the numerical results, it is only a 
+      display limitation.
+    </li>
+    <li>
+      In the 3D simulation, the laser vertical position is fixed at 3 cm. 
+      Therefore, if the simulation requires a greater vertical distance, the laser may appear 
+      within the tissue layers. Similarly, for tissue widths below 0.05 cm, the laser may 
+      fully cover the tissue.
+    </li>
+    <li>
+      <strong>This simulation is designed for desktop or laptop computers</strong>. Other devices 
+      (such as mobile phones or tablets) may not be able to render the 3D model correctly 
+      or may fail to display the graphics properly.
+    </li>
+    <li>
+      The number of photons is automatically set to 1×10⁶ by default. 
+      <strong>Higher photon counts require more processing time and may cause the simulation to crash.</strong> 
+      However, the program should handle up to approximately 1×10⁸ photons without issues. Have in mind that lager photon values "stop" the simulation from working, this is normal as the page needs to complete the calculations before performing any other operation so the user has to wait until the simulation ends before performing other simulation or introducing other values.
+    </li>
+    <li>
+      While it is technically possible to define more than one tumor, <strong>the simulation 
+      is not optimized for multiple tumors</strong>. As a result, numerical accuracy may be reduced 
+      in such cases.
+    </li>
+    <li>
+      The value of <em>λ</em> (wavelength) only determines the laser’s display color 
+      and does not affect the numerical calculations. Users should verify independently 
+      that the selected optical properties correspond to the chosen wavelength.
+    </li>
+  </ul>
+</div>
+
+
   <div class="mc-summary">
     <div class="text">
-        <h2>Simulación de Monte Carlo en Interacciones Luz–Tejido</h2>
+        <h2>Monte Carlo Simulation in Light–Tissue Interactions</h2>
 
-        <h3>Introducción general</h3>
+        <h3>General Introduction</h3>
         <p>
-            La simulación implementada en este proyecto está basada en los principios de la <strong>teoría del transporte radiativo</strong>,
-            que describe la propagación de la luz en medios turbios o altamente dispersivos, como los tejidos biológicos.
-            En estos medios, la luz experimenta múltiples fenómenos ópticos simultáneos: <em>absorción</em>,
-            <em>dispersión</em>, <em>reflexión</em> y <em>refracción</em>, tal y como se ve en la figura 1.
+            The simulation implemented in this project is based on the principles of the <strong>radiative transport theory</strong>,
+            which describes the propagation of light in turbid or highly scattering media, such as biological tissues.
+            In these media, light undergoes multiple simultaneous optical phenomena: <em>absorption</em>,
+            <em>scattering</em>, <em>reflection</em>, and <em>refraction</em>, as shown in Figure 1.
         </p>
 
         <p>
-            Los tejidos humanos no son medios transparentes, sino sistemas ópticamente complejos formados por células, orgánulos y
-            estructuras que desvían la luz en direcciones impredecibles. Por ello, las soluciones analíticas de las ecuaciones de transporte
-            son difíciles de obtener. En su lugar, se utilizan <strong>métodos de simulación Monte Carlo</strong>, que reproducen
-            el comportamiento de la luz mediante un enfoque probabilístico y estocástico.
+            Human tissues are not transparent media; they are optically complex systems composed of cells, organelles, and
+            structures that deflect light in unpredictable directions. Therefore, analytical solutions to the transport equations
+            are difficult to obtain. Instead, <strong>Monte Carlo simulation methods</strong> are used to reproduce
+            light behavior through a probabilistic and stochastic approach.
         </p>
 
-        <h3>Parámetros ópticos del tejido</h3>
+        <h3>Optical Parameters of Tissue</h3>
         <p>
-            Cada capa del modelo tisular se caracteriza por cuatro parámetros fundamentales:
+            Each layer of the tissue model is characterized by four fundamental parameters:
         </p>
         <ul>
-            <li><strong>µ<sub>a</sub>:</strong> coeficiente de absorción, que mide la probabilidad de que un fotón sea absorbido por unidad de longitud.</li>
-            <li><strong>µ<sub>s</sub>:</strong> coeficiente de dispersión, que representa la probabilidad de cambio de dirección por unidad de longitud.</li>
-            <li><strong>g:</strong> factor de anisotropía, que indica el grado de direccionalidad del esparcimiento.</li>
-            <li><strong>n<sub>t</sub>:</strong> índice de refracción, que determina cómo cambia la velocidad de la luz en cada medio.</li>
+            <li><strong>µ<sub>a</sub>:</strong> absorption coefficient, which measures the probability that a photon is absorbed per unit length.</li>
+            <li><strong>µ<sub>s</sub>:</strong> scattering coefficient, which represents the probability of a change in direction per unit length.</li>
+            <li><strong>g:</strong> anisotropy factor, indicating the degree of directionality of the scattering.</li>
+            <li><strong>n<sub>t</sub>:</strong> refractive index, which determines how the speed of light changes in each medium.</li>
         </ul>
 
         <p>
-            A partir de estos parámetros se define el <strong>albedo</strong>, dado por µ<sub>s</sub> / (µ<sub>a</sub> + µ<sub>s</sub>),
-            que expresa la fracción de energía que se dispersa frente a la que se absorbe, misma que se aprecia en la figura 2.
+            From these parameters, the <strong>albedo</strong> is defined as µ<sub>s</sub> / (µ<sub>a</sub> + µ<sub>s</sub>),
+            which expresses the fraction of energy that is scattered versus absorbed, as illustrated in Figure 2.
         </p>
 
-        <h3>Descripción del algoritmo Monte Carlo</h3>
+        <h3>Description of the Monte Carlo Algorithm</h3>
         <p>
-            El algoritmo Monte Carlo divide la trayectoria de un fotón en una secuencia de eventos de propagación y dispersión, similar a lo que se ve en la figura 3.
-            En cada paso:
+            The Monte Carlo algorithm divides a photon’s trajectory into a sequence of propagation and scattering events, similar to what is shown in Figure 3.
+            At each step:
         </p>
         <p>
-            Se genera un número aleatorio para calcular la distancia libre media (<em>step size</em>) según la distribución
-            <code>s = -ln(ξ)/(µ<sub>a</sub> + µ<sub>s</sub>)</code>, donde ξ es una variable aleatoria uniforme entre 0 y 1.
-            El fotón avanza esa distancia, pierde una fracción de su energía proporcional a µ<sub>a</sub>, y cambia de dirección
-            según la función de fase de Henyey–Greenstein, que aproxima la dispersión anisotrópica en tejidos biológicos.
-        </p>
-
-        <p>
-            Este proceso continúa hasta que el peso del fotón cae por debajo de un umbral, aplicándose la llamada “ruleta rusa”
-            para decidir si el fotón muere o sobrevive con peso ajustado. Se repite el procedimiento para millones de fotones,
-            acumulando la energía depositada en cada región del tejido.
-        </p>
-        <p>
-            El proceso entero está resumido en la ilustración de la figura 4.
-        </p>
-
-        <h3>Implementación en el código</h3>
-        <p>
-            En el código presentado, el modelo permite definir libremente el número de capas, sus propiedades ópticas y las dimensiones
-            en centímetros. Se pueden incluir <strong>capas planas (slabs)</strong> y una o más <strong>capas esféricas</strong> que simulen
-            tumores o estructuras internas.
+            A random number is generated to compute the mean free path (<em>step size</em>) according to the distribution
+            <code>s = -ln(ξ)/(µ<sub>a</sub> + µ<sub>s</sub>)</code>, where ξ is a uniformly distributed random variable between 0 and 1.
+            The photon advances that distance, loses a fraction of its energy proportional to µ<sub>a</sub>, and changes direction
+            according to the Henyey–Greenstein phase function, which approximates anisotropic scattering in biological tissues.
         </p>
 
         <p>
-            La simulación registra la energía absorbida en cada capa y calcula la fracción total de energía perdida.
-            Los resultados se presentan numéricamente y mediante una representación esquemática a escala, donde las capas aparecen
-            coloreadas según su tipo (por ejemplo, músculo, grasa, piel o tumor).
+            This process continues until the photon’s weight falls below a threshold, at which point the so-called “Russian roulette”
+            is applied to decide whether the photon terminates or survives with adjusted weight. The procedure is repeated for millions of photons,
+            accumulating the energy deposited in each region of the tissue.
+        </p>
+        <p>
+            The entire process is summarized in the illustration of Figure 4.
         </p>
 
-        <h3>Interpretación física</h3>
+        <h3>Implementation in the Code</h3>
         <p>
-            De acuerdo con la teoría de transporte óptico y los modelos mostrados en las diapositivas,
-            la distribución final de energía absorbida representa la <strong>fluencia de luz</strong> dentro del tejido
-            (<em>Φ</em> en W/cm²), y la acumulación local se interpreta como la <strong>densidad de potencia absorbida</strong>
-            (<em>Q</em> en W/cm³). Estas magnitudes son clave para aplicaciones como la
-            <em>terapia fotodinámica</em> y la <em>dosimetría óptica</em> en el tratamiento de tumores superficiales.
+            In the presented code, the model allows you to freely define the number of layers, their optical properties, and the dimensions
+            in centimeters. You can include <strong>planar layers (slabs)</strong> and one or more <strong>spherical layers</strong> to simulate
+            tumors or internal structures.
         </p>
 
-        <h3>En resumen</h3>
         <p>
-            La simulación Monte Carlo implementada constituye una herramienta numérica robusta y flexible para
-            reproducir la propagación de la luz en medios biológicos. Su fundamento teórico se basa en la ecuación de transporte
-            radiativo, y su fortaleza radica en que puede adaptarse fácilmente a tejidos multicapa y estructuras irregulares
-            donde los métodos analíticos resultan inviables.
+            The simulation records the energy absorbed in each layer and computes the total fraction of lost energy.
+            The results are presented numerically and through a schematic, to-scale representation, where the layers appear
+            colored according to their type (for example, muscle, fat, skin, or tumor).
+        </p>
+
+        <h3>Physical Interpretation</h3>
+        <p>
+            According to optical transport theory and the models shown in the slides,
+            the final distribution of absorbed energy represents the <strong>light fluence</strong>
+            (<em>Φ</em> in W/cm²) within the tissue, and the local accumulation is interpreted as the <strong>absorbed power density</strong>
+            (<em>Q</em> in W/cm³). These quantities are key for applications such as
+            <em>photodynamic therapy</em> and <em>optical dosimetry</em> in the treatment of superficial tumors.
+        </p>
+
+        <h3>In Summary</h3>
+        <p>
+            The implemented Monte Carlo simulation is a robust and flexible numerical tool to
+            reproduce light propagation in biological media. Its theoretical foundation relies on the radiative transport equation,
+            and its strength lies in its easy adaptation to multilayer tissues and irregular structures
+            where analytical methods are not feasible.
         </p>
     </div>
+
     <div class="imagenes">
-        <img src="img1.png">
-        <p>Figura 1: Transporte de luz en medios turbios y transparentes.</p>
-        <img src="img2.png">
-        <p>Figura 2: Descripción de los valores ópticos en tejidos.</p>
-        <img src="img3.png">
-        <p>Figura 3: Representación de la ecuación de transporte en tejido biológico.</p>
-        <img src="img4.png">
-        <p>Figura 4: Diagrama de flujo de la simulación de Monte Carlo.</p>
+        <img src="img1.png" alt="Light transport in turbid and transparent media">
+        <p>Figure 1: Light transport in turbid and transparent media.</p>
+        <img src="img2.png" alt="Optical parameter values in tissues">
+        <p>Figure 2: Description of optical parameter values in tissues.</p>
+        <img src="img3.png" alt="Representation of the transport equation in biological tissue">
+        <p>Figure 3: Representation of the transport equation in biological tissue.</p>
+        <img src="img4.png" alt="Flowchart of the Monte Carlo simulation">
+        <p>Figure 4: Flowchart of the Monte Carlo simulation.</p>
     </div>
+  </div>
+  <div class="pie">
+  <h3>
+    Program by Eduardo Gracidas Reyes on Sunday, October 19, 2025; Contents by PhD. Juan Horacio Rodríguez Espinoza 
+  </h3>
 </div>
-<div class="pie">
-    <h3>
-        Programa hecho por Eduardo Gracidas Reyes el domingo 19 de Octubre del 2025
-    </h3>
-</div>
+
 
   <script src="index.js" defer></script>
 </body>

@@ -178,6 +178,15 @@ function getSphereStroke(tipo) {
 
 
 
+// Estado global (por canvas) para la animación
+window.__corteAnim = window.__corteAnim || new Map();
+
+// ======= Estado global por-canvas para la animación =======
+window.__corteAnim = window.__corteAnim || new Map();
+
+// ======= Estado global por-canvas para la animación =======
+window.__corteAnim = window.__corteAnim || new Map();
+
 function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx, tipo, energy }) {
   const canvas = document.getElementById("canvas3D");
   if (!canvas) return;
@@ -263,7 +272,7 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
   ctx.strokeStyle = "#d3cfc9";
   ctx.beginPath(); ctx.moveTo(X(-Rxy), Y(zMax)); ctx.lineTo(X(+Rxy), Y(zMax)); ctx.stroke();
 
-  // ---------- esferas (debajo del texto) ----------
+  // ---------- esferas contorno del modelo (no animadas) ----------
   const cx = X(0), cz = Y(tumorCenterZ);
   spheres.forEach((sph) => {
     const rpx = (Number(sph.radius) || 0) * sY;
@@ -275,7 +284,46 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
     ctx.stroke();
   });
 
-  // ---------- etiquetas en slabs (por encima de los círculos) ----------
+  // ---------- LASER ----------
+  const lambda = Number(document.getElementById("lambda").value);
+  let color_laser = 0x000;
+  if (lambda <= 430) {
+    color_laser = 0x8000FF;
+  } else if (lambda > 430 && lambda <= 480) {
+    color_laser = 0x0037FF;
+  } else if (lambda > 480 && lambda <= 560) {
+    color_laser = 0x00DB21;
+  } else if (lambda > 560 && lambda <= 590) {
+    color_laser = 0xDBD400;
+  } else if (lambda > 590 && lambda <= 620) {
+    color_laser = 0xDB9900;
+  } else if (lambda > 620) {
+    color_laser = 0xDB0000;
+  }
+  const color = `#${color_laser.toString(16).padStart(6, "0")}`;
+
+  ctx.strokeStyle = color; 
+  ctx.fillStyle = color;
+  ctx.lineWidth = 6;
+
+  ctx.beginPath();
+  ctx.moveTo(X(0), Y(0) - 25);
+  ctx.lineTo(X(0), Y(zMax) + 25);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.lineWidth = 5;
+  ctx.moveTo(X(0), Y(0) - 25);
+  ctx.lineTo(X(0)-20, Y(0)-5);
+  ctx.moveTo(X(0), Y(0) - 25);
+  ctx.lineTo(X(0)+20, Y(0)-5);
+  ctx.stroke();
+
+  ctx.font = "17px Arial";
+  ctx.fillStyle = color;
+  ctx.fillText("Laser origin", X(0)-45, Y(0)-30);
+
+  // ---------- etiquetas en slabs ----------
   ctx.font = "12px system-ui, Arial";
   for (let k = 0; k < slabIdx.length; k++) {
     const idx = slabIdx[k];
@@ -302,30 +350,26 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
     ctx.fillText(label, bx + padX, by + boxH - 5);
   }
 
-  // ---------- leyenda (panel, sin recortes, con wrap) ----------
-  const legendMaxW = mR - 24;                       // ancho útil del margen
+  // ---------- leyenda ----------
+  const legendMaxW = mR - 24;
   const wrap = (text) => {
     const words = text.split(" ");
     let line = "", out = [];
     for (const w of words) {
       const test = line ? line + " " + w : w;
-      if (ctx.measureText(test).width <= legendMaxW - 14) line = test; // 14px icono
-      else { out.push(line); line = w; }
+      if (ctx.measureText(test).width <= legendMaxW - 14) line = test; else { out.push(line); line = w; }
     }
     if (line) out.push(line);
     return out;
   };
 
-  // posición: al menos 20px a la derecha del rectángulo
   const rectRight = X(+Rxy);
   const legendX = Math.max(rectRight + 20, W - mR + 12);
   let legendY = y0 + 6;
 
-  // panel de fondo
   var linesPreview = ["Capas esféricas:"].concat(legendItems.flatMap(wrap));
 
-  // título
-  if(legendItems.length > 0){
+  if (legendItems.length > 0) {
     const panelH = 24 + linesPreview.length * 18;
     const panelW = Math.min(mR - 16, 380);
     ctx.fillStyle = "rgba(255,255,255,0.96)";
@@ -338,7 +382,6 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
     legendY += 22;
   }
 
-  // items
   ctx.font = "12px system-ui, Arial";
   spheres.slice().sort((a,b)=>a.radius-b.radius).forEach(sph => {
     const idx = sph.index;
@@ -359,7 +402,7 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
     legendY += 18;
   });
 
-  // ---------- cotas globales (alto y ancho) ----------
+  // ---------- cotas globales ----------
   ctx.strokeStyle = "#6b6b6b"; ctx.fillStyle = "#444"; ctx.lineWidth = 1;
 
   // Alto (izquierda)
@@ -377,10 +420,181 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
   ctx.beginPath();
   ctx.moveTo(X(+Rxy), Y(zMax)+28); ctx.lineTo(X(+Rxy)-7, Y(zMax)+23); ctx.lineTo(X(+Rxy)-7, Y(zMax)+33); ctx.closePath(); ctx.fill();
   ctx.fillText(`${widthCm.toFixed(2)} cm`, X(-Rxy)+(widthPxForRect)/2 - 18, Y(zMax) + 46);
+
+
+  // ===================== ANIMACIÓN DE ESFERAS (overlay) =====================
+
+  // ----- utilidades -----
+  const rand = (min, max) => Math.random() * (max - min) + min;
+  const hexToRgba = (hex, a=1) => {
+    let h = hex.replace("#", "");
+    if (h.length === 3) h = h.split("").map(c=>c+c).join("");
+    const r = parseInt(h.slice(0,2), 16);
+    const g = parseInt(h.slice(2,4), 16);
+    const b = parseInt(h.slice(4,6), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  };
+
+  // CDF por energía
+  function buildEnergyCDF(energy, slabIdx) {
+    const weights = slabIdx.map((idx) => Math.max(0, Number(energy?.[idx]) || 0));
+    const total = weights.reduce((a, b) => a + b, 0);
+    const probs = (total > 0)
+      ? weights.map(w => w / total)
+      : weights.map(() => 1 / weights.length);
+    let acc = 0;
+    const cdf = probs.map(p => (acc += p));
+    cdf[cdf.length - 1] = 1; // cierre numérico
+    return cdf;
+  }
+  function pickLayerByCDF(cdf) {
+    const u = Math.random();
+    let lo = 0, hi = cdf.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (u <= cdf[mid]) hi = mid; else lo = mid + 1;
+    }
+    return lo;
+  }
+
+  // ---- estado por-canvas ----
+  let state = window.__corteAnim.get(canvas);
+  if (!state) {
+    state = {
+      particles: [],
+      last: performance.now(),
+      running: true,
+      spawnAcc: 0,
+      MAX: 120,     // máximo de esferas simultáneas
+      RATE: 40,     // esferas por segundo aprox.
+      advanceOnNextDraw: false,
+      _started: false
+    };
+    window.__corteAnim.set(canvas, state);
+
+    // Pausa/Reanuda con 'p'
+    window.addEventListener("keydown", (e) => {
+      if (e.key.toLowerCase() === "p") {
+        state.running = !state.running;
+        if (state.running) {
+          state.last = performance.now();
+          requestAnimationFrame(tick);
+        }
+      }
+    }, { passive: true });
+  }
+
+  // Guardar referencias para el loop y actualizar CDF
+  state.lastArgs   = { Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx, tipo, energy };
+  state.energyCDF  = buildEnergyCDF(energy, slabIdx);
+  state.zBoundRef  = zBound;
+  state.RxyRef     = Rxy;
+  state.zMaxRef    = zMax;
+  state.colorLaser = color;  // para usar mismo color
+  state.sY         = sY;     // para diámetro en cm si se desea
+
+  // (opcional) escalar tasa con energía máxima
+  {
+    const maxE = Math.max(...slabIdx.map(i => Number(energy?.[i]) || 0), 0);
+    const kRate = 1 + Math.log10(1 + maxE); // factor suave
+    state.RATE = 40 * kRate;
+  }
+
+  // ---- SPWAN con sesgo por energía ----
+  function spawnParticle() {
+  // ===== DIÁMETRO FIJO EN CM =====
+  const DIAMETER_CM = 0.01;                    // <-- pon aquí tu valor fijo
+  let r = (DIAMETER_CM / 2) * state.sY;        // convierte a píxeles con la escala actual
+
+  // (opcional) Asegurar visibilidad mínima y evitar burbujas gigantes:
+  r = Math.max(0.8, Math.min(1.2, r));            // clamp en píxeles (min 3px, máx 28px)
+
+  // ... el resto de tu spawn (elección de capa por CDF, x/y, velocidades, vida, etc.)
+  const k = state.energyCDF?.length ? pickLayerByCDF(state.energyCDF) : 0;
+  const z1 = state.zBoundRef[k];
+  const z2 = state.zBoundRef[k + 1];
+  const left = X(-state.RxyRef), right = X(+state.RxyRef);
+  const xMin = left + r,  xMax = right - r;
+  const yMin = Y(z1) + r, yMax = Y(z2) - r;
+
+  state.particles.push({
+      x: Math.random() * Math.max(0, (xMax - xMin)) + xMin,
+      y: Math.random() * Math.max(0, (yMax - yMin)) + yMin,
+      r,
+      t: 0,
+      life: rand(0.8, 2.2),
+      fadeIn: rand(0.2, 0.5),
+      fadeOut: rand(0.2, 0.5),
+      vx: rand(-20, 20),
+      vy: rand(-20, 20)
+    });
+  }
+
+
+  // Avanzar física si corresponde
+  if (state.advanceOnNextDraw && state.running) {
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - state.last) / 1000);
+    state.last = now;
+
+    // Spawning controlado
+    state.spawnAcc += state.RATE * dt;
+    while (state.spawnAcc >= 1 && state.particles.length < state.MAX) {
+      spawnParticle();
+      state.spawnAcc -= 1;
+    }
+
+    // Actualizar partículas
+    for (let i = state.particles.length - 1; i >= 0; i--) {
+      const p = state.particles[i];
+      p.t += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      // Rebote en límites del dominio
+      const left = X(-state.RxyRef), right = X(+state.RxyRef);
+      const top  = Y(0), bottom = Y(state.zMaxRef);
+      if (p.x < left + p.r)   { p.x = left + p.r;   p.vx *= -1; }
+      if (p.x > right - p.r)  { p.x = right - p.r;  p.vx *= -1; }
+      if (p.y < top + p.r)    { p.y = top + p.r;    p.vy *= -1; }
+      if (p.y > bottom - p.r) { p.y = bottom - p.r; p.vy *= -1; }
+
+      if (p.t >= p.life) state.particles.splice(i, 1);
+    }
+
+    state.advanceOnNextDraw = false;
+  }
+
+  // Dibujo de partículas (mismo color que el láser, con opacidad animada)
+  for (const p of state.particles) {
+    let a = 1;
+    if (p.t < p.fadeIn) {
+      const u = p.t / p.fadeIn; a = 1 - Math.pow(1 - u, 3);   // ease-out
+    } else if (p.life - p.t < p.fadeOut) {
+      const u = 1 - (p.life - p.t) / p.fadeOut; a = 1 - Math.pow(u, 3); // ease-in
+    }
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    // Si quisieras color por partícula: hexToRgba(p.color || state.colorLaser, a)
+    ctx.fillStyle = hexToRgba(state.colorLaser, a);
+    ctx.fill();
+  }
+
+  // Loop de animación
+  function tick() {
+    if (!state.running) return;
+    state.advanceOnNextDraw = true;
+    dibujarCorteEscala(state.lastArgs); // re-dibuja todo y hace el step de física
+    requestAnimationFrame(tick);
+  }
+  if (!state._started) {
+    state._started = true;
+    state.last = performance.now();
+    requestAnimationFrame(tick);
+  }
 }
 
-
-
+// ----- Render auxiliar (sin cambios relevantes) -----
 function renderEsquemaDesdeTabla(Rxy, tipo, z_end, centerCm, energyArr) {
   const geom = parseGeometryFromTable(tipo, z_end, centerCm);
   if (!geom.zBound.length) return;
@@ -395,6 +609,24 @@ function renderEsquemaDesdeTabla(Rxy, tipo, z_end, centerCm, energyArr) {
     energy: energyArr || new Float64Array(tipo.length) // por si viene vacío
   });
 }
+
+
+// (tu renderEsquemaDesdeTabla permanece igual)
+function renderEsquemaDesdeTabla(Rxy, tipo, z_end, centerCm, energyArr) {
+  const geom = parseGeometryFromTable(tipo, z_end, centerCm);
+  if (!geom.zBound.length) return;
+  dibujarCorteEscala({
+    Rxy,
+    zBound: geom.zBound,
+    zMax: geom.zMax,
+    spheres: geom.spheres,
+    tumorCenterZ: geom.tumorCenterZ,
+    slabIdx: geom.slabIdx,
+    tipo,
+    energy: energyArr || new Float64Array(tipo.length)
+  });
+}
+
 
 // --------- UI ---------
 document.addEventListener("DOMContentLoaded", function () {
@@ -415,7 +647,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${i + 1}</td>
-        <td><input type="text" step="any" placeholder="tipo (slab/esfera/tumor)" required></td>
+        <td><input type="text" step="any" placeholder="tipo (slab/sphere/tumor)" required></td>
         <td><input type="number" step="any" placeholder="mua" required></td>
         <td><input type="number" step="any" placeholder="mus" required></td>
         <td><input type="number" step="any" placeholder="g"   required></td>
@@ -546,21 +778,22 @@ document.addEventListener("DOMContentLoaded", function () {
       energy: Array.from(energy),
       tumorColor:0x005AD9,
       tumorCenterZ:tumorCenterZ,
-      energyloss:lost.toFixed(6)
+      energyloss:lost.toFixed(6),
+      lambda:parseInt(document.getElementById("lambda").value)
     };
     
     try{
       open3DViewer(threePayload);
     }catch{
-      console.warn("Tiempo de espera excesivo");
+      alert("Tiempo de espera excesivo, no se pudo abrir la simulación 3D");
     }
 
 
     salida.innerHTML =
-      "<b>Energía por capa: </b>\n" + energyStr +
-      "<b>Energía total absorbida: </b>" + energyT.toFixed(6) + "\n\n" +
-      "<b>Energía total perdida: </b><i style='color:red'>" + lost.toFixed(6) + "</i>\n\n" +
-      "<b>Tiempo: </b>" + elapsed.toFixed(3) + " s";
+      "<b>Energy per layer: </b>\n" + energyStr +
+      "<b>Total absorbed energy: </b>" + energyT.toFixed(6) + "\n\n" +
+      "<b>Total energy loss: </b><i style='color:red'>" + lost.toFixed(6) + "</i>\n\n" +
+      "<b>Time: </b>" + elapsed.toFixed(3) + " s";
 
       // --- Dibujo (corte a escala) ---
       renderEsquemaDesdeTabla(Rxy, tipo, z_end, tumorCenterZ, energy);
