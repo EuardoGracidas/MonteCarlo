@@ -8,6 +8,52 @@
 const ALIVE = 1, DEAD = 0;
 const threshold = 1e-4, chance = 0.1;
 
+function mediac(valores) {
+  return valores.reduce((a, b) => a + b, 0) / valores.length;
+}
+
+function desviacionEstandar(valores) {
+  const n = valores.length;
+  const mean = mediac(valores);
+  const varianza = valores.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1);
+  return Math.sqrt(varianza);
+}
+
+function intervaloConfianza(datos, nivel = 0.95) {
+  // Valor z según nivel de confianza
+  const z =
+    nivel === 0.90 ? 1.645 :
+    nivel === 0.99 ? 2.576 :
+    1.96; // 95% por defecto
+
+  const n = datos.length;
+  const media = mediac(datos);
+  const desviacion = desviacionEstandar(datos);
+  const errorEstandar = desviacion / Math.sqrt(n);
+  const margen = z * errorEstandar;
+
+  const inferior = media - margen;
+  const superior = media + margen;
+  const errorPorcentual = (margen / media) * 100;
+
+  console.log("📊 Intervalo de Confianza Relativo");
+  console.log("-----------------------------------");
+  console.log(`Nivel de confianza: ${(nivel * 100).toFixed(0)}%`);
+  console.log(`Media: ${media.toFixed(4)}`);
+  console.log(`Desviación estándar: ${desviacion.toFixed(4)}`);
+  console.log(`n: ${n}`);
+  console.log(`Error estándar: ${errorEstandar.toFixed(4)}`);
+  console.log(`Margen (±): ${margen.toFixed(4)}`);
+  console.log(`Error relativo: ±${errorPorcentual.toFixed(2)}%`);
+  console.log(`Intervalo: [${inferior.toFixed(4)}, ${superior.toFixed(4)}]`);
+  console.log(`✅ Resultado: ${media.toFixed(4)} ± ${errorPorcentual.toFixed(2)}%`);
+
+  // 🔹 Devuelve todos los valores
+  return { media, margen, errorPorcentual, inferior, superior };
+}
+
+
+
 // StepRand = 0:0.001:1
 const StepRand = Array.from({ length: 1001 }, (_, k) => k / 1000);
 function randFromStep() {
@@ -176,18 +222,14 @@ function getSphereStroke(tipo) {
   return /tumor/i.test(String(tipo)) ? "#B71C1C" : "#7FC5D6";
 }
 
-
-
-// Estado global (por canvas) para la animación
-window.__corteAnim = window.__corteAnim || new Map();
-
 // ======= Estado global por-canvas para la animación =======
 window.__corteAnim = window.__corteAnim || new Map();
 
-// ======= Estado global por-canvas para la animación =======
-window.__corteAnim = window.__corteAnim || new Map();
-
-function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx, tipo, energy }) {
+function dibujarCorteEscala({
+  Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx, tipo, energy,
+  tumorCenterX = 0,            // NUEVO: centro X del tumor (cm)
+  tumorCenterY = 0             // NUEVO: centro Y del tumor (cm) — no visible en corte X–Z
+}) {
   const canvas = document.getElementById("canvas3D");
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
@@ -217,13 +259,24 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
   // ---------- medir leyenda para margen derecho dinámico ----------
   ctx.save();
   ctx.font = "12px system-ui, Arial";
-  const legendItems = spheres.slice().sort((a,b)=>a.radius-b.radius).map(s=>{
-    const isTumor = /tumor/i.test(s.tipo);
-    const E = Number(energy?.[s.index]) || 0;
-    return `${isTumor?"Tumor":"Esfera"} • E=${E.toExponential(3)} • r=${(Number(s.radius)||0).toFixed(4)} cm`;
-  });
+
+  const legendItems = spheres
+    .slice()
+    .sort((a, b) => a.radius - b.radius)
+    .map((s) => {
+      const isTumor = /tumor/i.test(s.tipo);
+      const E = Number(energy?.[s.index]) || 0;
+      const r = Number(s.radius) || 0;
+      return (isTumor ? "Tumor" : "Esfera") +
+        " • E=" + E.toExponential(3) +
+        " • r=" + r.toFixed(4) + " cm";
+    });
+
   let maxLegendW = ctx.measureText("Capas esféricas:").width;
-  for (const t of legendItems) maxLegendW = Math.max(maxLegendW, ctx.measureText(t).width);
+  for (const t of legendItems) {
+    const w = ctx.measureText(t).width;
+    if (w > maxLegendW) maxLegendW = w;
+  }
   ctx.restore();
 
   // ---------- márgenes ----------
@@ -273,7 +326,8 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
   ctx.beginPath(); ctx.moveTo(X(-Rxy), Y(zMax)); ctx.lineTo(X(+Rxy), Y(zMax)); ctx.stroke();
 
   // ---------- esferas contorno del modelo (no animadas) ----------
-  const cx = X(0), cz = Y(tumorCenterZ);
+  const cx = X(tumorCenterX);  // <--- antes era X(0)
+  const cz = Y(tumorCenterZ);
   spheres.forEach((sph) => {
     const rpx = (Number(sph.radius) || 0) * sY;
     if (rpx <= 0) return;
@@ -285,8 +339,8 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
   });
 
   // ---------- LASER ----------
-  const lambda = Number(document.getElementById("lambda").value);
-  let color_laser = 0x000;
+  const lambda = Number(document.getElementById("lambda")?.value);
+  let color_laser = 0x000000;
   if (lambda <= 430) {
     color_laser = 0x8000FF;
   } else if (lambda > 430 && lambda <= 480) {
@@ -313,10 +367,10 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
 
   ctx.beginPath();
   ctx.lineWidth = 5;
-  ctx.moveTo(X(0), Y(0) - 25);
-  ctx.lineTo(X(0)-20, Y(0)-5);
-  ctx.moveTo(X(0), Y(0) - 25);
-  ctx.lineTo(X(0)+20, Y(0)-5);
+  ctx.moveTo(X(0), Y(zMax)+25);
+  ctx.lineTo(X(0)-20, Y(zMax)+5);
+  ctx.moveTo(X(0), Y(zMax)+25);
+  ctx.lineTo(X(0)+20, Y(zMax)+5);
   ctx.stroke();
 
   ctx.font = "17px Arial";
@@ -367,7 +421,7 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
   const legendX = Math.max(rectRight + 20, W - mR + 12);
   let legendY = y0 + 6;
 
-  var linesPreview = ["Capas esféricas:"].concat(legendItems.flatMap(wrap));
+  const linesPreview = ["Capas esféricas:"].concat(legendItems.flatMap(wrap));
 
   if (legendItems.length > 0) {
     const panelH = 24 + linesPreview.length * 18;
@@ -485,7 +539,7 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
   }
 
   // Guardar referencias para el loop y actualizar CDF
-  state.lastArgs   = { Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx, tipo, energy };
+  state.lastArgs   = { Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx, tipo, energy, tumorCenterX, tumorCenterY };
   state.energyCDF  = buildEnergyCDF(energy, slabIdx);
   state.zBoundRef  = zBound;
   state.RxyRef     = Rxy;
@@ -500,24 +554,23 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
     state.RATE = 40 * kRate;
   }
 
-  // ---- SPWAN con sesgo por energía ----
+  // ---- SPAWN con sesgo por energía ----
   function spawnParticle() {
-  // ===== DIÁMETRO FIJO EN CM =====
-  const DIAMETER_CM = 0.01;                    // <-- pon aquí tu valor fijo
-  let r = (DIAMETER_CM / 2) * state.sY;        // convierte a píxeles con la escala actual
+    // ===== DIÁMETRO FIJO EN CM =====
+    const DIAMETER_CM = 0.01;                    // valor fijo
+    let r = (DIAMETER_CM / 2) * state.sY;        // a píxeles
 
-  // (opcional) Asegurar visibilidad mínima y evitar burbujas gigantes:
-  r = Math.max(0.8, Math.min(1.2, r));            // clamp en píxeles (min 3px, máx 28px)
+    // clamp para visibilidad
+    r = Math.max(0.8, Math.min(1.2, r));
 
-  // ... el resto de tu spawn (elección de capa por CDF, x/y, velocidades, vida, etc.)
-  const k = state.energyCDF?.length ? pickLayerByCDF(state.energyCDF) : 0;
-  const z1 = state.zBoundRef[k];
-  const z2 = state.zBoundRef[k + 1];
-  const left = X(-state.RxyRef), right = X(+state.RxyRef);
-  const xMin = left + r,  xMax = right - r;
-  const yMin = Y(z1) + r, yMax = Y(z2) - r;
+    const k = state.energyCDF?.length ? pickLayerByCDF(state.energyCDF) : 0;
+    const z1 = state.zBoundRef[k];
+    const z2 = state.zBoundRef[k + 1];
+    const left = X(-state.RxyRef), right = X(+state.RxyRef);
+    const xMin = left + r,  xMax = right - r;
+    const yMin = Y(z1) + r, yMax = Y(z2) - r;
 
-  state.particles.push({
+    state.particles.push({
       x: Math.random() * Math.max(0, (xMax - xMin)) + xMin,
       y: Math.random() * Math.max(0, (yMax - yMin)) + yMin,
       r,
@@ -529,7 +582,6 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
       vy: rand(-20, 20)
     });
   }
-
 
   // Avanzar física si corresponde
   if (state.advanceOnNextDraw && state.running) {
@@ -575,7 +627,6 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
     }
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-    // Si quisieras color por partícula: hexToRgba(p.color || state.colorLaser, a)
     ctx.fillStyle = hexToRgba(state.colorLaser, a);
     ctx.fill();
   }
@@ -594,9 +645,9 @@ function dibujarCorteEscala({ Rxy, zBound, zMax, spheres, tumorCenterZ, slabIdx,
   }
 }
 
-// ----- Render auxiliar (sin cambios relevantes) -----
-function renderEsquemaDesdeTabla(Rxy, tipo, z_end, centerCm, energyArr) {
-  const geom = parseGeometryFromTable(tipo, z_end, centerCm);
+// ----- Render auxiliar (versión única, con X/Y) -----
+function renderEsquemaDesdeTabla(Rxy, tipo, z_end, centerZ, energyArr, centerX = 0, centerY = 0) {
+  const geom = parseGeometryFromTable(tipo, z_end, centerZ);
   if (!geom.zBound.length) return;
   dibujarCorteEscala({
     Rxy,
@@ -606,27 +657,11 @@ function renderEsquemaDesdeTabla(Rxy, tipo, z_end, centerCm, energyArr) {
     tumorCenterZ: geom.tumorCenterZ,
     slabIdx: geom.slabIdx,
     tipo,
-    energy: energyArr || new Float64Array(tipo.length) // por si viene vacío
+    energy: energyArr || new Float64Array(tipo.length),
+    tumorCenterX: centerX,
+    tumorCenterY: centerY
   });
 }
-
-
-// (tu renderEsquemaDesdeTabla permanece igual)
-function renderEsquemaDesdeTabla(Rxy, tipo, z_end, centerCm, energyArr) {
-  const geom = parseGeometryFromTable(tipo, z_end, centerCm);
-  if (!geom.zBound.length) return;
-  dibujarCorteEscala({
-    Rxy,
-    zBound: geom.zBound,
-    zMax: geom.zMax,
-    spheres: geom.spheres,
-    tumorCenterZ: geom.tumorCenterZ,
-    slabIdx: geom.slabIdx,
-    tipo,
-    energy: energyArr || new Float64Array(tipo.length)
-  });
-}
-
 
 // --------- UI ---------
 document.addEventListener("DOMContentLoaded", function () {
@@ -728,11 +763,22 @@ document.addEventListener("DOMContentLoaded", function () {
       z_bound_slab[k + 1] = z_end[slabIdx[k]];
     }
 
-    // Centro del tumor (cm) definido por el usuario
+    // Centro del tumor Z (cm) definido por el usuario
     let tumorCenterZ = Number(theightEl?.value);
     if (!Number.isFinite(tumorCenterZ)) tumorCenterZ = 0.15; // default MATLAB
     const zMax = z_bound_slab[z_bound_slab.length - 1];
     tumorCenterZ = Math.max(0, Math.min(zMax, tumorCenterZ)); // clamp al dominio
+
+    // NUEVO: leer X, Y (cm)
+    const tumorXEl = document.getElementById("tumorX");
+    const tumorYEl = document.getElementById("tumorY");
+    let tumorCenterX = Number(tumorXEl?.value);
+    let tumorCenterY = Number(tumorYEl?.value);
+    if (!Number.isFinite(tumorCenterX)) tumorCenterX = 0;
+    if (!Number.isFinite(tumorCenterY)) tumorCenterY = 0;
+    // clamp lateral al dominio
+    tumorCenterX = Math.max(-Rxy, Math.min(Rxy, tumorCenterX));
+    tumorCenterY = Math.max(-Rxy, Math.min(Rxy, tumorCenterY));
 
     // Ordenamos esferas por radio ascendente (anidadas)
     spheres.sort((a, b) => a.radius - b.radius);
@@ -743,31 +789,75 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // --- Simulación ---
     const t0 = performance.now();
-    const energy = simulate(
+
+    let energyT = 0.0;
+    let energy = [];
+    let energys = [];
+
+    let iter = document.getElementById("Nit").value;
+
+    for(let j = 0; j < iter; j++){
+      const sim = simulate(
       N, mua, mus, g, albedo, z_bound_slab, Rxy,
-      {
-        center: [0, 0, tumorCenterZ], // centro del tumor según usuario
-        spheres,
-        slabIdx
+        {
+          center: [tumorCenterX, tumorCenterY, tumorCenterZ], // <--- X,Y,Z
+          spheres,
+          slabIdx
+        }
+      );
+
+      let energyTit = 0.0;
+      for (let i = 0; i < sim.length; i++){
+        energyTit += sim[i];
+        if(j != 0){
+          energy[i] += sim[i];
+        }
       }
-    );
+      
+      energyT+=energyTit;
+
+      if(j == 0){
+        energy = sim;
+      }
+
+      energys.push((N - energyTit) / N);
+
+      console.log("ITERACION: ",j)
+      console.log((N - energyTit) / N);
+
+    }
+    energyT=energyT/iter;
+
+    const ic = intervaloConfianza(energys, 0.95);
+    console.log(ic)
+
+    energy.forEach((v,i)=>{
+      energy[i] = energy[i]/iter;
+    });
+
+    const lost = (N - energyT) / N;
+
     const t1 = performance.now();
 
-    // Resultados
-    let energyT = 0.0;
-    for (let i = 0; i < energy.length; i++) energyT += energy[i];
-    const lost = (N - energyT) / N;
     const elapsed = (t1 - t0) / 1000;
 
     let energyStr = "<ul>";
+    let imax = energy.indexOf(Math.max(...Array.from(energy)));
+    let imin = energy.indexOf(Math.min(...Array.from(energy)));
+
     for (let i = 0; i < energy.length; i++) {
       energyStr += "<li>";
-      energyStr += `<b>${tipo[i]}:</b> ${energy[i]}\n`;
+      if(i == imax){
+        energyStr += `<b>${tipo[i]}:</b> <i style='color:red'>${((energy[i]/energyT)*100).toFixed(3)}%</i>\n`;
+      }else if(i == imin){
+        energyStr += `<b>${tipo[i]}:</b> <i style='color:blue'>${((energy[i]/energyT)*100).toFixed(3)}%</i>\n`;
+      }else{
+        energyStr += `<b>${tipo[i]}:</b> ${((energy[i]/energyT)*100).toFixed(3)}%\n`;
+      }
       energyStr += "</li>";
     }
     energyStr += "</ul>";
 
-    console.log(tumorCenterZ)
     const threePayload = {
       Rxy,
       zBound: Array.from(z_bound_slab),
@@ -775,11 +865,12 @@ document.addEventListener("DOMContentLoaded", function () {
       tipo: Array.from(tipo),
       spheres: spheres.map(s => ({ index: s.index, radius: s.radius, tipo: s.tipo })),
       tumorCenterZ,
+      tumorCenterX,                // NUEVO
+      tumorCenterY,                // NUEVO
       energy: Array.from(energy),
       tumorColor:0x005AD9,
-      tumorCenterZ:tumorCenterZ,
       energyloss:lost.toFixed(6),
-      lambda:parseInt(document.getElementById("lambda").value)
+      lambda:parseInt(document.getElementById("lambda")?.value)
     };
     
     try{
@@ -788,17 +879,24 @@ document.addEventListener("DOMContentLoaded", function () {
       alert("Tiempo de espera excesivo, no se pudo abrir la simulación 3D");
     }
 
+    let timeString = "";
+    if(elapsed >= 60){
+      timeString = String((elapsed/60).toFixed(3)) + " min";
+    }else{
+      timeString = elapsed.toFixed(3) + " s";
+    }
 
     salida.innerHTML =
       "<b>Energy per layer: </b>\n" + energyStr +
       "<b>Total absorbed energy: </b>" + energyT.toFixed(6) + "\n\n" +
-      "<b>Total energy loss: </b><i style='color:red'>" + lost.toFixed(6) + "</i>\n\n" +
-      "<b>Time: </b>" + elapsed.toFixed(3) + " s";
+      "<b>Total energy loss: </b><i style='color:red'>" + (lost * 100).toFixed(3) + " ± " +ic.errorPorcentual.toFixed(2) +"% [" + (ic.inferior*100).toFixed(2) +", "+(ic.superior*100).toFixed(2)+"]</i>\n\n" +
+      "<b>Time: </b>" + timeString;
 
-      // --- Dibujo (corte a escala) ---
-      renderEsquemaDesdeTabla(Rxy, tipo, z_end, tumorCenterZ, energy);
-    });
+    // --- Dibujo (corte a escala) ---
+    renderEsquemaDesdeTabla(Rxy, tipo, z_end, tumorCenterZ, energy, tumorCenterX, tumorCenterY);
+  });
 });
+
 // --- Cargar CSV y poblar tabla ---
 (function attachCsvLoader(){
   const fileInput = document.getElementById("fileCSV");
@@ -876,8 +974,10 @@ document.addEventListener("DOMContentLoaded", function () {
       inputs[4].value = isFinite(r.nt)  ? r.nt  : "";
       inputs[5].value = isFinite(r.z_end) ? r.z_end : "";
     });
+
   }
 })();
+
 function open3DViewer(payload) {
   const viewer = window.open("viewer.html", "_blank");
 

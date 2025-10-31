@@ -9,31 +9,66 @@
   <h2 id = "titulo">Monte Carlo Simulation</h2>
 
 
-    <h4 style="margin-bottom: 12px;">Parámetros</h4>
-    <label>Fotones: <input id="Nphotons" type="number" value="1000000" min="1"></label>
-    <label>Centro (cm): <input id="Rxy" type="number" value="0.065" step="0.0001"></label>
-    <label>Capas: <input id="NC" type="number" value="3" min="1"></label>
-    <label>PosYTumor (opcional): <input id="theight" type="number" value = "0.15" min = "0"></label>
-    <label>λ (nm): <input id="lambda" type="number" value="400" min = 1> </label>
-    <button id="init">Crear tabla</button> 
-    <br>
-    <label>Importar parámetros ópticos (opcional): </label><input id="fileCSV" type="file" accept=".csv"></label>
+    <section class="panel">
+  <h3>Parámetros</h3>
+
+  <div class="form-grid">
+    <!-- Simulación -->
+    <div class="field">
+      <label for="Nphotons">Fotones</label>
+      <input id="Nphotons" type="number" value="1000000" min="1" step="1">
+      <small>Cantidad de fotones a simular</small>
+    </div>
+
+    <div class="field">
+      <label for="NC">Capas (slabs)</label>
+      <input id="NC" type="number" value="3" min="1" step="1">
+      <small>Número de capas planas en Z</small>
+    </div>
+
+    <!-- Dominio -->
+    <div class="field">
+      <label for="Rxy">R<sub>xy</sub> (cm)</label>
+      <input id="Rxy" type="number" value="0.065" step="0.0001" min="0">
+      <small>Semiancho lateral del dominio (radio en X/Y)</small>
+    </div>
+
+    <!-- Fuente -->
+    <div class="field">
+      <label for="lambda">λ (nm)</label>
+      <input id="lambda" type="number" value="400" min="1" step="1">
+      <small>Longitud de onda del láser</small>
+    </div>
+
+    <!-- Acciones / Archivo -->
+    <div class="field span-2">
+      <label for="fileCSV">Importar parámetros ópticos (CSV, opcional)</label>
+      <input id="fileCSV" type="file" accept=".csv">
+      <small>Cabecera esperada: <code>Tipo,mua,mus,g,nt,z_end</code></small>
+    </div>
+
+    <div class="actions span-2">
+      <button id="init" class="btn-primary">Crear tabla</button>
+    </div>
+  </div>
+</section>
 
 
   <table id="tabla" aria-label="Capas">
     <thead>
       <tr>
-        <th>#</th><th>Tipo</th><th>µa</th><th>µs</th><th>g</th><th>nt</th><th>Z end o radio (cm)</th>
+        <th>#</th><th>Type</th><th>µa</th><th>µs</th><th>g</th><th>nt</th><th>Z end or radio (cm)</th>
       </tr>
     </thead>
     <tbody></tbody>
   </table>
 
   <br>
+  <label>Number of iterations: </label>
+  <input type="number" id="Nit" min=1 value=1>
+  <button id="run">Simulate</button>
 
-  <button id="run">Ejecutar simulación</button>
-
-  <h4>Simulación</h4>
+  <h4>Simulation</h4>
   <div id="contenedor">
     <div id="salida"></div>
     <!-- Vista 3D esquemática -->

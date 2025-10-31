@@ -21,16 +21,12 @@
     Arrastra para rotar, rueda para zoom.
     <div>
         <p><b>Energía por capa: </b></p>
-        <ul id="capas">
-
-        </ul>
+        <ul id="capas"></ul>
         <p>
             <b>Energía perdida: </b>
             <i style="color:red" id="energyloss"></i>
         </p>
-
-        <p id="laserinfo">
-        </p>
+        <p id="laserinfo"></p>
     </div>
     <div id="warn"></div>
   </div>
@@ -47,7 +43,6 @@
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0x1C1C1C, 1);
-  // Respetar nuestro orden de dibujado
   renderer.sortObjects = false;
   document.getElementById('app').appendChild(renderer.domElement);
 
@@ -102,239 +97,233 @@
   // {
   //   Rxy: number (cm),
   //   zBound: number[] (acumulado, cm),
-  //   tipo: string[] (solo slabs),
+  //   slabIdx: number[],
+  //   tipo: string[],
+  //   spheres: { index:number, radius:number, tipo:string }[],
   //   tumorCenterZ: number (cm),
-  //   tumorRadius: number (cm),
-  //   tumorColor?: string (hex)       <-- opcional
-  //   shellRadii?: number[]           <-- opcional, radios extra para concéntricas
+  //   tumorCenterX?: number (cm)   <-- NUEVO
+  //   tumorCenterY?: number (cm)   <-- NUEVO
+  //   tumorColor?: string|number,
+  //   energy?: number[],
+  //   energyloss?: number|string,
+  //   lambda?: number
   // }
   function build(payload){
-  const capas = document.getElementById("capas");
-  payload.slabIdx.forEach((i)=>{
-    let li = document.createElement("li");
-    li.innerText = payload.tipo[i] + ":  " +String(payload.energy[i]);
-    capas.appendChild(li);
-  });
+    const capas = document.getElementById("capas");
+    capas.innerHTML = "";
+    (payload.slabIdx||[]).forEach((i)=>{
+      const li = document.createElement("li");
+      li.innerText = payload.tipo[i] + ": " + String(payload.energy?.[i] ?? 0);
+      capas.appendChild(li);
+    });
+    if ((payload.tipo||[]).some(t => /tumor/i.test(t))) {
+      const idxTum = payload.tipo.findIndex(t => /tumor/i.test(t));
+      const li = document.createElement("li");
+      li.innerText = "Tumor: " + String(payload.energy?.[idxTum] ?? 0);
+      capas.appendChild(li);
+    }
 
-  if(payload.tipo.indexOf("tumor") != -1){
-    let li = document.createElement("li");
-    li.innerText = "Tumor: " + payload.energy[payload.tipo.indexOf("tumor")];
-    capas.appendChild(li);
-  }
+    const laserinfo = document.getElementById("laserinfo");
+    laserinfo.style.fontWeight = "bolder";
 
-  const laserinfo = document.getElementById("laserinfo");
-  laserinfo.style.fontWeight = "bolder";
+    let color_laser = 0x000000;
+    if(payload.lambda <= 430){
+      color_laser = 0x8000FF;
+      laserinfo.innerText = "Irradiando con luz UV";
+    }else if(payload.lambda > 430 && payload.lambda <= 480){
+      color_laser = 0x0037FF;
+      laserinfo.innerText = "Irradiando con luz AZUL";
+    }else if(payload.lambda > 480 && payload.lambda <= 560){
+      color_laser = 0x00DB21;
+      laserinfo.innerText = "Irradiando con luz VERDE";
+    }else if(payload.lambda > 560 && payload.lambda <= 590){
+      color_laser = 0xDBD400;
+      laserinfo.innerText = "Irradiando con luz AMARILLA";
+    }else if(payload.lambda > 590 && payload.lambda <= 620){
+      color_laser = 0xDB9900;
+      laserinfo.innerText = "Irradiando con luz NARANJA";
+    }else if(payload.lambda > 620){
+      color_laser = 0xDB0000;
+      laserinfo.innerText = "Irradiando con luz ROJA";
+    }
+    laserinfo.style.color = `#${color_laser.toString(16).padStart(6, "0")}`;
+    document.getElementById("energyloss").innerText = String(payload.energyloss ?? "");
 
-  let color_laser = 0x000;
-  if(payload.lambda <= 430){
-    color_laser = 0x8000FF;
-    laserinfo.innerText = "Irradiando con luz UV";
-  }else if(payload.lambda > 430 && payload.lambda <= 480){
-    color_laser = 0x0037FF;
-    laserinfo.innerText = "Irradiando con luz AZUL";
-  }else if(payload.lambda > 480 && payload.lambda <= 560){
-    color_laser = 0x00DB21;
-    laserinfo.innerText = "Irradiando con luz VERDE";
-  }else if(payload.lambda > 560 && payload.lambda <= 590){
-    color_laser = 0xDBD400;
-    laserinfo.innerText = "Irradiando con luz AMARILLA";
-  }else if(payload.lambda > 590 && payload.lambda <= 620){
-    color_laser = 0xDB9900;
-    laserinfo.innerText = "Irradiando con luz NARANJA";
-  }else if(payload.lambda > 620){
-    color_laser = 0xDB0000;
-    laserinfo.innerText = "Irradiando con luz ROJA";
-  }
-
-  laserinfo.style.color = `#${color_laser.toString(16).padStart(6, "0")}`;
-  console.log(color_laser)
-
-  const geometry = new THREE.CylinderGeometry(
-        0.2,      // radiusTop: Radius of the cylinder at the top
-        0.2,      // radiusBottom: Radius of the cylinder at the bottom
-        1,     // height: Height of the cylinder
-        32,     // radialSegments: Number of segmented faces around the circumference
-        1,      // heightSegments: Number of rows of faces along the height
-        false,  // openEnded: Boolean indicating whether the ends are open or capped
-        0,      // thetaStart: Start angle for the first segment (default is 0)
-        Math.PI * 2 // thetaLength: The central angle (default is 2*Math.PI for a full cylinder)
-    );
+    // Elementos decorativos (cilindro y rayo)
+    const geometry = new THREE.CylinderGeometry(0.2,0.2,1,32,1,false,0,Math.PI*2);
     const material = new THREE.MeshBasicMaterial({ color: 0xC7C7C7 });
     const box = new THREE.Mesh(geometry, material);
-    box.position.set(0,2,0)
+    box.position.set(0,2,0);
     scene.add(box);
 
-    const geometry2 = new THREE.BoxGeometry(0.05,5, 0.05);
-    const material2 = new THREE.MeshBasicMaterial({ color: color_laser,opacity:0.2 });
+    const geometry2 = new THREE.BoxGeometry(0.05,5,0.05);
+    const material2 = new THREE.MeshBasicMaterial({ color: color_laser, opacity:0.2 });
     const box2 = new THREE.Mesh(geometry2, material2);
-    box2.position.set(0,0,0)
+    box2.position.set(0,0,0);
     scene.add(box2);
 
-  document.getElementById("energyloss").innerText = String(payload.energyloss);
+    const {
+      Rxy,
+      zBound = [],
+      slabIdx = [],
+      tipo = [],
+      spheres = [],
+      tumorCenterZ,
+      tumorCenterX = 0,   // NUEVO
+      tumorCenterY = 0,   // NUEVO
+      tumorColor,
+      energy = []
+    } = payload || {};
 
-  const {
-    Rxy,
-    zBound,        // [0, z1, z2, ..., H] cm
-    slabIdx = [],  // índices de filas que son slabs (siempre en el mismo orden que zBound-1)
-    tipo = [],     // nombres por capa slab (longitud = zBound.length - 1)
-    spheres = [],  // [{ index, radius, tipo }], radios en cm
-    tumorCenterZ,  // centro común (z) para TODAS las esferas
-    tumorColor,    // opcional, color tumor (hex string/number)
-    energy = []    // opcional, energía por índice de fila (slabs/esferas)
-  } = payload || {};
+    // limpieza escena
+    clearRoot();
+    warnEl.textContent = "";
 
-  // limpieza escena
-  clearRoot();
-  warnEl.textContent = "";
+    // validaciones mínimas
+    if (!Array.isArray(zBound) || zBound.length < 2) return;
+    const R = Number(Rxy);
+    const H = zBound[zBound.length - 1];
+    if (!isFinite(R) || R <= 0 || !isFinite(H) || H <= 0) return;
 
-  // validaciones mínimas
-  if (!Array.isArray(zBound) || zBound.length < 2) return;
-  const R = Number(Rxy);
-  const H = zBound[zBound.length - 1];
-  if (!isFinite(R) || R <= 0 || !isFinite(H) || H <= 0) return;
+    // utilidades
+    const width = 2 * R, depth = 2 * R;
+    const zToY = z => (H / 2) - z; // superficie arriba
 
-  // utilidades
-  const width = 2 * R, depth = 2 * R;
-  const zToY = z => (H / 2) - z; // superficie arriba
-
-  // Marco
-  {
-    const frameGeo = new THREE.BoxGeometry(width, H, depth);
-    const frame = new THREE.LineSegments(
-      new THREE.EdgesGeometry(frameGeo),
-      new THREE.LineBasicMaterial({ color: 0x888888 })
-    );
-    frame.renderOrder = 0;
-    root.add(frame);
-  }
-
-  // ----- SLABS (rectángulos) -----
-  // Si NO usas slabIdx, asumimos slabs = todos los intervalos de zBound.
-  const useIdx = (Array.isArray(slabIdx) && slabIdx.length === (zBound.length - 1))
-    ? slabIdx
-    : Array.from({length: zBound.length - 1}, (_, i) => i);
-
-  for (let k = 0; k < zBound.length - 1; k++) {
-    const z1 = zBound[k], z2 = zBound[k + 1];
-    const h  = Math.max(1e-4, z2 - z1);
-    const y  = zToY((z1 + z2) / 2);
-
-    const idxFila = useIdx[k] ?? k; // índice de fila “real” (por si tu tabla no coincide uno-a-uno)
-    const nombre = tipo[idxFila] ?? `capa ${k+1}`;
-    const mat = new THREE.MeshStandardMaterial({
-      color: colTipo(nombre),
-      transparent: true, opacity: 0.60,
-      depthTest: true, depthWrite: true, side: THREE.DoubleSide
-    });
-
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(width, h, depth), mat);
-    slab.position.set(0, y, 0);
-    slab.renderOrder = 1;
-    root.add(slab);
-
-    const edge = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(width, h, depth)),
-      new THREE.LineBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.25 })
-    );
-    edge.position.copy(slab.position);
-    edge.renderOrder = 1;
-    root.add(edge);
-
-    // (Opcional) Etiqueta simple 2D con energía por slab si llega
-    if (Number.isFinite(energy[idxFila])) {
-      // puedes añadir aquí un overlay HTML si lo deseas
-      // p.ej. addHtmlLabel(slab.position, `${nombre}: E=${energy[idxFila].toExponential(3)}`);
+    // Marco
+    {
+      const frameGeo = new THREE.BoxGeometry(width, H, depth);
+      const frame = new THREE.LineSegments(
+        new THREE.EdgesGeometry(frameGeo),
+        new THREE.LineBasicMaterial({ color: 0x888888 })
+      );
+      frame.renderOrder = 0;
+      root.add(frame);
     }
-  }
 
-  // ----- ESFERAS (tumor + capas concéntricas) -----
-  // Todas centradas en el MISMO z (tumorCenterZ).
-  if (Array.isArray(spheres) && spheres.length) {
-    const eps = 1e-6;
+    // ----- SLABS -----
+    const useIdx = (Array.isArray(slabIdx) && slabIdx.length === (zBound.length - 1))
+      ? slabIdx
+      : Array.from({length: zBound.length - 1}, (_, i) => i);
 
-    // Aseguramos que el centro cae dentro de algún slab
-    let zc = Number(tumorCenterZ);
-    if (!isFinite(zc)) zc = 0;
+    for (let k = 0; k < zBound.length - 1; k++) {
+      const z1 = zBound[k], z2 = zBound[k + 1];
+      const h  = Math.max(1e-4, z2 - z1);
+      const y  = zToY((z1 + z2) / 2);
 
-    let iSlab = -1;
-    for (let i = 0; i < zBound.length - 1; i++) {
-      if (zc >= zBound[i] && zc < zBound[i + 1]) { iSlab = i; break; }
+      const idxFila = useIdx[k] ?? k;
+      const nombre = tipo[idxFila] ?? `capa ${k+1}`;
+      const mat = new THREE.MeshStandardMaterial({
+        color: colTipo(nombre),
+        transparent: true, opacity: 0.60,
+        depthTest: true, depthWrite: true, side: THREE.DoubleSide
+      });
+
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(width, h, depth), mat);
+      slab.position.set(0, y, 0);
+      slab.renderOrder = 1;
+      root.add(slab);
+
+      const edge = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(width, h, depth)),
+        new THREE.LineBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.25 })
+      );
+      edge.position.copy(slab.position);
+      edge.renderOrder = 1;
+      root.add(edge);
     }
-    if (iSlab === -1 && Math.abs(zc - H) < 1e-9) {
-      zc = H - eps;
+
+    // ----- ESFERAS (tumor + capas concéntricas) -----
+    if (Array.isArray(spheres) && spheres.length) {
+      const eps = 1e-6;
+
+      // Centro Z válido
+      let zc = Number(tumorCenterZ);
+      if (!isFinite(zc)) zc = 0;
+
+      // Asegurar que cae dentro de un slab por Z
+      let iSlab = -1;
       for (let i = 0; i < zBound.length - 1; i++) {
         if (zc >= zBound[i] && zc < zBound[i + 1]) { iSlab = i; break; }
       }
-    }
-    if (iSlab === -1) { iSlab = 0; zc = (zBound[0] + zBound[1]) / 2; }
-
-    const z1 = zBound[iSlab], z2 = zBound[iSlab + 1];
-    const yCenter = zToY(zc);
-
-    // Colores
-    const tumorCol = (typeof tumorColor === 'string' || typeof tumorColor === 'number')
-      ? tumorColor
-      : '#ff1744';
-    const shellCol = '#7FC5D6';
-
-    // Ordena por radio ascendente para que se vean bien
-    const sorted = spheres.slice().sort((a, b) => a.radius - b.radius);
-
-    sorted.forEach(s => {
-      const rawR = Number(s.radius);
-      if (!isFinite(rawR) || rawR <= 0) return;
-
-      // Recorte: quepa dentro del slab del centro
-      const maxR = Math.max(1e-4, Math.min(zc - z1, z2 - zc) - eps);
-      const r = Math.min(rawR, maxR);
-
-      const isTumor = /tumor/i.test(String(s.tipo || ""));
-      const baseColor = isTumor ? tumorCol : shellCol;
-
-      // Esfera semitransparente
-      const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(r, 48, 32),
-        new THREE.MeshStandardMaterial({
-          color: baseColor,
-          transparent: true,
-          opacity: isTumor ? 0.90 : 0.40, // tumor + intenso
-          depthTest: true, depthWrite: false, side: THREE.DoubleSide
-        })
-      );
-      mesh.position.set(0, yCenter, 0);
-      mesh.renderOrder = 2;
-      root.add(mesh);
-
-      // Contorno para distinguir radios
-      const wire = new THREE.Mesh(
-        new THREE.SphereGeometry(r, 24, 16),
-        new THREE.MeshBasicMaterial({
-          color: baseColor,
-          wireframe: isTumor ? false : true, opacity: isTumor ? 0.9 : 0.5
-        })
-      );
-      wire.position.copy(mesh.position);
-      wire.renderOrder = 3;
-      root.add(wire);
-
-      // (Opcional) energía de esa “fila” (si tu energy indexa también esferas)
-      const eVal = energy[s.index];
-      if (Number.isFinite(eVal)) {
-        // addHtmlLabel(mesh.position, `${s.tipo}: E=${eVal.toExponential(3)}`);
+      if (iSlab === -1 && Math.abs(zc - H) < 1e-9) {
+        zc = H - eps;
+        for (let i = 0; i < zBound.length - 1; i++) {
+          if (zc >= zBound[i] && zc < zBound[i + 1]) { iSlab = i; break; }
+        }
       }
-    });
-  }
+      if (iSlab === -1) { iSlab = 0; zc = (zBound[0] + zBound[1]) / 2; }
 
-  // ----- encuadre de cámara -----
-  const box3 = new THREE.Box3().setFromObject(root);
-  const size = new THREE.Vector3(); box3.getSize(size);
-  const center = new THREE.Vector3(); box3.getCenter(center);
-  const maxDim = Math.max(size.x, size.y, size.z);
-  const fitDist = maxDim * 1.6 / Math.tan((camera.fov*Math.PI/180)/2);
-  camera.position.set(center.x + maxDim * 0.6, center.y + maxDim * 0.6, center.z + fitDist);
-  controls.target.copy(center);
-  controls.update();
-}
+      const z1 = zBound[iSlab], z2 = zBound[iSlab + 1];
+      const yCenter = zToY(zc);
+
+      // NUEVO: Centro lateral (clamp al dominio [-R,+R])
+      const xCenter = THREE.MathUtils.clamp(Number(tumorCenterX) || 0, -R, R);
+      const zCenter = THREE.MathUtils.clamp(Number(tumorCenterY) || 0, -R, R);
+
+      // Colores
+      const tumorCol = (typeof tumorColor === 'string' || typeof tumorColor === 'number')
+        ? tumorColor
+        : '#ff1744';
+      const shellCol = '#7FC5D6';
+
+      const sorted = spheres.slice().sort((a, b) => a.radius - b.radius);
+
+      sorted.forEach(s => {
+        const rawR = Number(s.radius);
+        if (!isFinite(rawR) || rawR <= 0) return;
+
+        // Recorte en Z para que quepa dentro del slab donde está el centro
+        const maxRz = Math.max(1e-4, Math.min(zc - z1, z2 - zc) - eps);
+        // Recorte lateral para que no salga de las paredes
+        const maxRx = Math.max(1e-4, R - Math.abs(xCenter) - eps);
+        const maxRy = Math.max(1e-4, R - Math.abs(zCenter) - eps);
+        const maxR  = Math.max(1e-4, Math.min(rawR, maxRz, maxRx, maxRy));
+
+        const isTumor = /tumor/i.test(String(s.tipo || ""));
+        const baseColor = isTumor ? tumorCol : shellCol;
+
+        // Esfera
+        const mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(maxR, 48, 32),
+          new THREE.MeshStandardMaterial({
+            color: baseColor,
+            transparent: true,
+            opacity: isTumor ? 0.90 : 0.40,
+            depthTest: true, depthWrite: false, side: THREE.DoubleSide
+          })
+        );
+        mesh.position.set(xCenter, yCenter, zCenter); // <--- POSICIÓN 3D ACTUALIZADA
+        mesh.renderOrder = 2;
+        root.add(mesh);
+
+        const wire = new THREE.Mesh(
+          new THREE.SphereGeometry(maxR, 24, 16),
+          new THREE.MeshBasicMaterial({
+            color: baseColor,
+            wireframe: isTumor ? false : true, opacity: isTumor ? 0.9 : 0.5
+          })
+        );
+        wire.position.copy(mesh.position);
+        wire.renderOrder = 3;
+        root.add(wire);
+
+        const eVal = energy[s.index];
+        if (Number.isFinite(eVal)) {
+          // aquí podrías añadir etiquetas si lo deseas
+        }
+      });
+    }
+
+    // ----- encuadre de cámara -----
+    const box3 = new THREE.Box3().setFromObject(root);
+    const size = new THREE.Vector3(); box3.getSize(size);
+    const center = new THREE.Vector3(); box3.getCenter(center);
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const fitDist = maxDim * 1.6 / Math.tan((camera.fov*Math.PI/180)/2);
+    camera.position.set(center.x + maxDim * 0.6, center.y + maxDim * 0.6, center.z + fitDist);
+    controls.target.copy(center);
+    controls.update();
+  }
 
   // Loop
   window.addEventListener('resize', ()=>{
@@ -358,11 +347,18 @@
     maybeStartOnce({
       Rxy: 1.0,
       zBound: [0, 0.3, 0.6, 0.9, 1.2],
+      slabIdx: [0,1,2,3],
       tipo: ["grasa","músculo","piel","piel"],
-      tumorCenterZ: 0.15,
-      tumorRadius: 0.12,
+      spheres: [
+        { index: 4, radius: 0.08, tipo: "tumor" },
+        { index: 5, radius: 0.10, tipo: "esfera" }
+      ],
+      tumorCenterZ: 0.30,
+      tumorCenterX: 0.20,  // mover en X (cm)
+      tumorCenterY: -0.15, // mover en Y (cm) -> eje Z en la escena
       tumorColor: "#ff1744",
-      shellRadii: [0.08, 0.1] // opcional: capas concéntricas
+      energy: [],
+      lambda: 633
     });
   }, 300);
   </script>

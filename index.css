@@ -98,6 +98,66 @@ ul{
     margin-bottom: 1rem;
     background-color: rgb(255, 248, 221);
 }
-.explanation h3{
-    
+.panel {
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.06);
+}
+.panel > h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.field input[type="number"],
+.field input[type="file"] {
+  padding: 8px 10px;
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  font: inherit;
+}
+.field small {
+  color: #6a6a6a;
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.btn-primary {
+  background: #005ad9;
+  color: #fff;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-primary:hover { filter: brightness(0.95); }
+
+.span-2 { grid-column: span 2; }
+
+@media (max-width: 720px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .span-2 { grid-column: span 1; }
 }
