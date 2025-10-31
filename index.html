@@ -10,27 +10,27 @@
 
 
     <section class="panel">
-  <h3>Parámetros</h3>
+  <h3>Parameters</h3>
 
   <div class="form-grid">
     <!-- Simulación -->
     <div class="field">
-      <label for="Nphotons">Fotones</label>
+      <label for="Nphotons">Photons</label>
       <input id="Nphotons" type="number" value="1000000" min="1" step="1">
-      <small>Cantidad de fotones a simular</small>
+      <small>Total quantity of photons to simulate</small>
     </div>
 
     <div class="field">
-      <label for="NC">Capas (slabs)</label>
+      <label for="NC">Layers (slabs)</label>
       <input id="NC" type="number" value="3" min="1" step="1">
-      <small>Número de capas planas en Z</small>
+      <small>Number of layers</small>
     </div>
 
     <!-- Dominio -->
     <div class="field">
       <label for="Rxy">R<sub>xy</sub> (cm)</label>
       <input id="Rxy" type="number" value="0.065" step="0.0001" min="0">
-      <small>Semiancho lateral del dominio (radio en X/Y)</small>
+      <small>Tissue width</small>
     </div>
 
     <!-- Fuente -->
@@ -42,13 +42,13 @@
 
     <!-- Acciones / Archivo -->
     <div class="field span-2">
-      <label for="fileCSV">Importar parámetros ópticos (CSV, opcional)</label>
+      <label for="fileCSV">Import optical parameters (CSV, optional)</label>
       <input id="fileCSV" type="file" accept=".csv">
-      <small>Cabecera esperada: <code>Tipo,mua,mus,g,nt,z_end</code></small>
+      <small>Expected header: <code>Type,mua,mus,g,nt,z_end</code></small>
     </div>
 
     <div class="actions span-2">
-      <button id="init" class="btn-primary">Crear tabla</button>
+      <button id="init" class="btn-primary">Create table</button>
     </div>
   </div>
 </section>
