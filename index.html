@@ -10,27 +10,46 @@
 
 
     <section class="panel">
-  <h3>Parameters</h3>
+  <h3>Parámetros</h3>
 
   <div class="form-grid">
     <!-- Simulación -->
     <div class="field">
-      <label for="Nphotons">Photons</label>
+      <label for="Nphotons">Fotones</label>
       <input id="Nphotons" type="number" value="1000000" min="1" step="1">
-      <small>Total quantity of photons to simulate</small>
+      <small>Cantidad de fotones a simular</small>
     </div>
 
     <div class="field">
-      <label for="NC">Layers (slabs)</label>
+      <label for="NC">Capas (slabs)</label>
       <input id="NC" type="number" value="3" min="1" step="1">
-      <small>Number of layers</small>
+      <small>Número de capas planas en Z</small>
     </div>
 
     <!-- Dominio -->
     <div class="field">
       <label for="Rxy">R<sub>xy</sub> (cm)</label>
       <input id="Rxy" type="number" value="0.065" step="0.0001" min="0">
-      <small>Tissue width</small>
+      <small>Semiancho lateral del dominio (radio en X/Y)</small>
+    </div>
+
+    <!-- Tumor (centro) -->
+    <div class="field">
+      <label for="theight">Y del tumor (cm)</label>
+      <input id="theight" type="number" value="0.15" min="0" step="any">
+      <small>Profundidad (eje Z)</small>
+    </div>
+
+    <div class="field">
+      <label for="tumorX">X del tumor (cm)</label>
+      <input id="tumorX" type="number" value="0" step="any">
+      <small>Desplazamiento lateral X</small>
+    </div>
+
+    <div class="field">
+      <label for="tumorY">Z del tumor (cm)</label>
+      <input id="tumorY" type="number" value="0" step="any">
+      <small>Desplazamiento lateral Y</small>
     </div>
 
     <!-- Fuente -->
@@ -40,15 +59,21 @@
       <small>Longitud de onda del láser</small>
     </div>
 
+    <div class="field">
+      <label for="Nit">Iterations number</label>
+      <input id="Nit" type="number" value="400" min="1" step="1">
+      <small>Iterations number</small>
+    </div>
+
     <!-- Acciones / Archivo -->
     <div class="field span-2">
-      <label for="fileCSV">Import optical parameters (CSV, optional)</label>
+      <label for="fileCSV">Importar parámetros ópticos (CSV, opcional)</label>
       <input id="fileCSV" type="file" accept=".csv">
-      <small>Expected header: <code>Type,mua,mus,g,nt,z_end</code></small>
+      <small>Cabecera esperada: <code>Tipo,mua,mus,g,nt,z_end</code></small>
     </div>
 
     <div class="actions span-2">
-      <button id="init" class="btn-primary">Create table</button>
+      <button id="init" class="btn-primary">Crear tabla</button>
     </div>
   </div>
 </section>
@@ -64,8 +89,7 @@
   </table>
 
   <br>
-  <label>Number of iterations: </label>
-  <input type="number" id="Nit" min=1 value=1>
+
   <button id="run">Simulate</button>
 
   <h4>Simulation</h4>
