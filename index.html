@@ -29,14 +29,14 @@
     <!-- Dominio -->
     <div class="field">
       <label for="Rxy">R<sub>xy</sub> (cm)</label>
-      <input id="Rxy" type="number" value="0.065" step="0.0001" min="0">
+      <input id="Rxy" type="number" value="1" step="0.0001" min="0">
       <small>Semiancho lateral del dominio (radio en X/Y)</small>
     </div>
 
     <!-- Tumor (centro) -->
     <div class="field">
-      <label for="theight">Y del tumor (cm)</label>
-      <input id="theight" type="number" value="0.15" min="0" step="any">
+      <label for="tumorY">Y del tumor (cm)</label>
+      <input id="tumorY" type="number" value="0" min="0" step="any">
       <small>Profundidad (eje Z)</small>
     </div>
 
@@ -47,8 +47,26 @@
     </div>
 
     <div class="field">
-      <label for="tumorY">Z del tumor (cm)</label>
-      <input id="tumorY" type="number" value="0" step="any">
+      <label for="theight">Z del tumor (cm)</label>
+      <input id="theight" type="number" value="0.15" step="any">
+      <small>Desplazamiento lateral Y</small>
+    </div>
+
+    <div class="field">
+      <label for="laserX">X del laser (cm)</label>
+      <input id="laserX" type="number" value="0" step="any">
+      <small>Desplazamiento lateral Y</small>
+    </div>
+
+    <div class="field">
+      <label for="laserY">Y del laser (cm)</label>
+      <input id="laserY" type="number" value="0" step="any">
+      <small>Desplazamiento lateral Y</small>
+    </div>
+
+    <div class="field">
+      <label for="laser Z">Z del laser (cm)</label>
+      <input id="laserZ" type="number" value="0" step="any">
       <small>Desplazamiento lateral Y</small>
     </div>
 
@@ -82,7 +100,7 @@
   <table id="tabla" aria-label="Capas">
     <thead>
       <tr>
-        <th>#</th><th>Type</th><th>µa</th><th>µs</th><th>g</th><th>nt</th><th>Z end or radio (cm)</th>
+        <th>#</th><th>Type</th><th>µa</th><th>µs</th><th>g</th><th>nt</th><th>Z end or diameter (cm)</th>
       </tr>
     </thead>
     <tbody></tbody>

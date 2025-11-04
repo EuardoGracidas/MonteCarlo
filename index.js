@@ -119,7 +119,9 @@ function simulate(N, mua, mus, g, albedo, z_bound_slab, Rxy, overlayCfg) {
 
   for (let p = 0; p < N; p++) {
     let W = 1.0;
-    let x = 0, y = 0, z = 0;
+    let x = parseInt(document.getElementById("laserX").value);
+    let y = parseInt(document.getElementById("laserY").value);
+    let z = parseInt(document.getElementById("laserZ").value);
     let [ux, uy, uz] = launchDirectionIsotropic();
 
     // capa inicial por z (entre las slabs)
@@ -360,22 +362,25 @@ function dibujarCorteEscala({
   ctx.fillStyle = color;
   ctx.lineWidth = 6;
 
+  let xlaser = document.getElementById("laserX").value;
+  let ylaser = document.getElementById("laserZ").value;
+
   ctx.beginPath();
-  ctx.moveTo(X(0), Y(0) - 25);
-  ctx.lineTo(X(0), Y(zMax) + 25);
+  ctx.moveTo(X((xlaser-Rxy)+1), Y(ylaser) - 25);
+  ctx.lineTo(X((xlaser-Rxy)+1), Y(zMax) + 25);
   ctx.stroke();
 
   ctx.beginPath();
   ctx.lineWidth = 5;
-  ctx.moveTo(X(0), Y(zMax)+25);
-  ctx.lineTo(X(0)-20, Y(zMax)+5);
-  ctx.moveTo(X(0), Y(zMax)+25);
-  ctx.lineTo(X(0)+20, Y(zMax)+5);
+  ctx.moveTo(X((xlaser-Rxy)+1), Y(zMax)+25);
+  ctx.lineTo(X((xlaser-Rxy)+1)-20, Y(zMax)+5);
+  ctx.moveTo(X((xlaser-Rxy)+1), Y(zMax)+25);
+  ctx.lineTo(X((xlaser-Rxy)+1)+20, Y(zMax)+5);
   ctx.stroke();
 
   ctx.font = "17px Arial";
   ctx.fillStyle = color;
-  ctx.fillText("Laser origin", X(0)-45, Y(0)-30);
+  ctx.fillText("Laser origin", X((xlaser-Rxy)+1)-45, Y(ylaser)-30);
 
   // ---------- etiquetas en slabs ----------
   ctx.font = "12px system-ui, Arial";
