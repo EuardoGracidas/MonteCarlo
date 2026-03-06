@@ -17,6 +17,8 @@ th, td {
     padding:17px;
     color:#ffffff;
     margin-top:0;
+    margin-bottom: 10px;
+    font-size: 30px;
     font-family:Verdana, Geneva, Tahoma, sans-serif;
 }
 #salida { 
@@ -160,4 +162,12 @@ ul{
 @media (max-width: 720px) {
   .form-grid { grid-template-columns: 1fr; }
   .span-2 { grid-column: span 1; }
+}
+#nickname{
+    text-align: center;
+    font-size: 20px;
+    padding: 13px;
+    background-color: #005ad9;
+    margin:0;
+    color:#fff;
 }
