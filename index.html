@@ -10,71 +10,71 @@
 
 
     <section class="panel">
-  <h3>Parámetros</h3>
+  <h3>Parameters</h3>
 
   <div class="form-grid">
     <!-- Simulación -->
     <div class="field">
-      <label for="Nphotons">Fotones</label>
+      <label for="Nphotons">Photons</label>
       <input id="Nphotons" type="number" value="1000000" min="1" step="1">
-      <small>Cantidad de fotones a simular</small>
+      <small>Quantity of photons to simulate</small>
     </div>
 
     <div class="field">
-      <label for="NC">Capas (slabs)</label>
+      <label for="NC">Layers (slabs)</label>
       <input id="NC" type="number" value="3" min="1" step="1">
-      <small>Número de capas planas en Z</small>
+      <small>Number of layers</small>
     </div>
 
     <!-- Dominio -->
     <div class="field">
       <label for="Rxy">R<sub>xy</sub> (cm)</label>
       <input id="Rxy" type="number" value="1" step="0.0001" min="0">
-      <small>Semiancho lateral del dominio (radio en X/Y)</small>
+      <small>Half-lateral-width</small>
     </div>
 
     <!-- Tumor (centro) -->
     <div class="field">
-      <label for="tumorY">Y del tumor (cm)</label>
+      <label for="tumorY">Y tumor (cm)</label>
       <input id="tumorY" type="number" value="0" min="0" step="any">
-      <small>Profundidad (eje Z)</small>
+      <small>Frontal displacement (Y axis)</small>
     </div>
 
     <div class="field">
-      <label for="tumorX">X del tumor (cm)</label>
+      <label for="tumorX">X tumor(cm)</label>
       <input id="tumorX" type="number" value="0" step="any">
-      <small>Desplazamiento lateral X</small>
+      <small>Lateral displacement (X axis)</small>
     </div>
 
     <div class="field">
-      <label for="theight">Z del tumor (cm)</label>
+      <label for="theight">Z tumor (cm)</label>
       <input id="theight" type="number" value="0.15" step="any">
-      <small>Desplazamiento lateral Y</small>
+      <small>Vertical displacement (Z axis)</small>
     </div>
 
     <div class="field">
-      <label for="laserX">X del laser (cm)</label>
+      <label for="laserX">X laser (cm)</label>
       <input id="laserX" type="number" value="0" step="any">
-      <small>Desplazamiento lateral Y</small>
+      <small>Lateral displacement X</small>
     </div>
 
     <div class="field">
-      <label for="laserY">Y del laser (cm)</label>
+      <label for="laserY">Y laser (cm)</label>
       <input id="laserY" type="number" value="0" step="any">
-      <small>Desplazamiento lateral Y</small>
+      <small>Frontal displacement Y</small>
     </div>
 
     <div class="field">
-      <label for="laser Z">Z del laser (cm)</label>
+      <label for="laser Z">Z laser (cm)</label>
       <input id="laserZ" type="number" value="0" step="any">
-      <small>Desplazamiento lateral Y</small>
+      <small>Depth Z</small>
     </div>
 
     <!-- Fuente -->
     <div class="field">
       <label for="lambda">λ (nm)</label>
       <input id="lambda" type="number" value="400" min="1" step="1">
-      <small>Longitud de onda del láser</small>
+      <small>Laser wavelength</small>
     </div>
 
     <div class="field">
@@ -85,13 +85,13 @@
 
     <!-- Acciones / Archivo -->
     <div class="field span-2">
-      <label for="fileCSV">Importar parámetros ópticos (CSV, opcional)</label>
+      <label for="fileCSV">Import optical parameters (CSV, optional)</label>
       <input id="fileCSV" type="file" accept=".csv">
-      <small>Cabecera esperada: <code>Tipo,mua,mus,g,nt,z_end</code></small>
+      <small>Expected header: <code>Type,mua,mus,g,nt,z_end</code></small>
     </div>
 
     <div class="actions span-2">
-      <button id="init" class="btn-primary">Crear tabla</button>
+      <button id="init" class="btn-primary">Create table: </button>
     </div>
   </div>
 </section>
@@ -109,6 +109,7 @@
   <br>
 
   <button id="run">Simulate</button>
+  <p id="status" style="color:red;font-weight: bold;"></p>
 
   <h4>Simulation</h4>
   <div id="contenedor">

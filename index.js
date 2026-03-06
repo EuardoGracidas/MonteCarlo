@@ -119,9 +119,9 @@ function simulate(N, mua, mus, g, albedo, z_bound_slab, Rxy, overlayCfg) {
 
   for (let p = 0; p < N; p++) {
     let W = 1.0;
-    let x = parseInt(document.getElementById("laserX").value);
-    let y = parseInt(document.getElementById("laserY").value);
-    let z = parseInt(document.getElementById("laserZ").value);
+    let x = parseFloat(document.getElementById("laserX").value);
+    let y = parseFloat(document.getElementById("laserY").value);
+    let z = parseFloat(document.getElementById("laserZ").value);
     let [ux, uy, uz] = launchDirectionIsotropic();
 
     // capa inicial por z (entre las slabs)
@@ -699,169 +699,226 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   runBtn.addEventListener("click", function () {
-    const N = Math.max(1, parseInt(NphotonsEl.value, 10) || 1000000);
+  const N = Math.max(1, parseInt(NphotonsEl.value, 10) || 1000000);
 
-    // Rxy en cm (ignora el "(m)" del label)
-    const Rxy = parseFloat(RxyEl.value);
-    if (!isFinite(Rxy) || Rxy <= 0) {
-      salida.textContent = "Error: Rxy debe ser un número en centímetros.";
+  // Rxy en cm
+  const Rxy = parseFloat(RxyEl.value);
+  if (!isFinite(Rxy) || Rxy <= 0) {
+    salida.textContent = "Error: Rxy debe ser un número en centímetros.";
+    return;
+  }
+
+  const rows = Array.from(tbody.querySelectorAll("tr"));
+  if (rows.length === 0) {
+    salida.textContent = "Primero crea la tabla de capas.";
+    return;
+  }
+
+  const Nc = rows.length;
+  const tipo = new Array(Nc);
+  const mua = new Float64Array(Nc);
+  const mus = new Float64Array(Nc);
+  const g   = new Float64Array(Nc);
+  const nt  = new Float64Array(Nc);
+  const z_end = new Float64Array(Nc); // slab: límite z acumulado (cm); esfera/tumor: radio (cm)
+
+  for (let i = 0; i < Nc; i++) {
+    const inputs = rows[i].querySelectorAll("input");
+    tipo[i]  = inputs[0].value;
+    mua[i]   = parseFloat(inputs[1].value);
+    mus[i]   = parseFloat(inputs[2].value);
+    g[i]     = parseFloat(inputs[3].value);
+    nt[i]    = parseFloat(inputs[4].value);
+    z_end[i] = parseFloat(inputs[5].value);
+
+    if (![mua[i], mus[i], g[i], nt[i], z_end[i]].every(Number.isFinite)) {
+      salida.textContent = `Error: revisa los valores numéricos en la fila ${i + 1}.`;
       return;
     }
+  }
 
-    const rows = Array.from(tbody.querySelectorAll("tr"));
-    if (rows.length === 0) {
-      salida.textContent = "Primero crea la tabla de capas.";
+  // Particionamos en slabs (por z) y esferas (radio)
+  const slabIdx = [];
+  const spheres = []; // {index, radius, tipo}
+  for (let i = 0; i < Nc; i++) {
+    if (/esfera|sphere|tumor/i.test(String(tipo[i] || ""))) {
+      spheres.push({ index: i, radius: z_end[i], tipo: tipo[i] });
+    } else {
+      slabIdx.push(i);
+    }
+  }
+  if (slabIdx.length === 0) {
+    salida.textContent = "Error: define al menos una capa 'slab' (tipo sin 'esfera'/'tumor').";
+    return;
+  }
+
+  // z_end estrictamente creciente solo entre slabs
+  for (let k = 1; k < slabIdx.length; k++) {
+    const a = z_end[slabIdx[k - 1]], b = z_end[slabIdx[k]];
+    if (!(b > a)) {
+      salida.textContent = "Error: z_end (cm) debe ser estrictamente creciente para las capas slab.";
       return;
     }
+  }
 
-    const Nc = rows.length;
-    const tipo = new Array(Nc);
-    const mua = new Float64Array(Nc);
-    const mus = new Float64Array(Nc);
-    const g   = new Float64Array(Nc);
-    const nt  = new Float64Array(Nc);
-    const z_end = new Float64Array(Nc); // slab: límite z acumulado (cm); esfera/tumor: radio (cm)
+  // Límite por z (cm) usando solo slabs
+  const z_bound_slab = new Float64Array(slabIdx.length + 1);
+  z_bound_slab[0] = 0.0;
+  for (let k = 0; k < slabIdx.length; k++) {
+    z_bound_slab[k + 1] = z_end[slabIdx[k]];
+  }
 
-    for (let i = 0; i < Nc; i++) {
-      const inputs = rows[i].querySelectorAll("input");
-      tipo[i]  = inputs[0].value;
-      mua[i]   = parseFloat(inputs[1].value);
-      mus[i]   = parseFloat(inputs[2].value);
-      g[i]     = parseFloat(inputs[3].value);
-      nt[i]    = parseFloat(inputs[4].value);
-      z_end[i] = parseFloat(inputs[5].value);
+  // Centro del tumor Z (cm) definido por el usuario
+  let tumorCenterZ = Number(theightEl?.value);
+  if (!Number.isFinite(tumorCenterZ)) tumorCenterZ = 0.15; // default MATLAB
+  const zMax = z_bound_slab[z_bound_slab.length - 1];
+  tumorCenterZ = Math.max(0, Math.min(zMax, tumorCenterZ)); // clamp al dominio
 
-      if (![mua[i], mus[i], g[i], nt[i], z_end[i]].every(Number.isFinite)) {
-        salida.textContent = `Error: revisa los valores numéricos en la fila ${i + 1}.`;
+  // NUEVO: leer X, Y (cm)
+  const tumorXEl = document.getElementById("tumorX");
+  const tumorYEl = document.getElementById("tumorY");
+  let tumorCenterX = Number(tumorXEl?.value);
+  let tumorCenterY = Number(tumorYEl?.value);
+  if (!Number.isFinite(tumorCenterX)) tumorCenterX = 0;
+  if (!Number.isFinite(tumorCenterY)) tumorCenterY = 0;
+  // clamp lateral al dominio
+  tumorCenterX = Math.max(-Rxy, Math.min(Rxy, tumorCenterX));
+  tumorCenterY = Math.max(-Rxy, Math.min(Rxy, tumorCenterY));
+
+  // Ordenamos esferas por radio ascendente (anidadas)
+  spheres.sort((a, b) => a.radius - b.radius);
+
+  // Albedo para todas las filas (slabs + esferas)
+  const albedo = new Float64Array(Nc);
+  for (let i = 0; i < Nc; i++) albedo[i] = mus[i] / (mus[i] + mua[i]);
+
+  // ====== PARÁMETROS DE LA SIMULACIÓN EN PARALELO ======
+  const iter = Math.max(1, parseInt(document.getElementById("Nit").value, 10) || 1);
+
+  const laserx = parseFloat(document.getElementById("laserX").value);
+  const lasery = parseFloat(document.getElementById("laserY").value);
+  const laserz = parseFloat(document.getElementById("laserZ").value);
+
+  const overlayCfg = {
+    center: [tumorCenterX, tumorCenterY, tumorCenterZ],
+    spheres: spheres.map(s => ({ index: s.index, radius: s.radius, tipo: s.tipo })),
+    slabIdx: Array.from(slabIdx)
+  };
+
+  // ====== POOL DE WORKERS ======
+  const hw = Math.max(1, Math.min(iter, (navigator.hardwareConcurrency || 4)));
+const jobsPerWorker = Math.floor(iter / hw);
+let remainder = iter % hw;
+
+const energyGlobal = new Float64Array(Nc);
+const lossesAll = [];
+
+const statusEl = document.getElementById('status');
+const startTime = performance.now();
+
+// 🔢 progreso global
+let completedIterations = 0;
+const totalIterations = iter;
+
+function updateStatus() {
+  // Muestra porcentaje y conteo
+  const pct = (completedIterations / totalIterations) * 100;
+  statusEl.textContent = `Progreso: ${completedIterations}/${totalIterations} (${pct.toFixed(1)}%)`;
+}
+
+function runWorker(itersForThisWorker) {
+  return new Promise((resolve, reject) => {
+    const w = new Worker('mc-worker.js');
+
+    w.onmessage = (ev) => {
+      const msg = ev.data;
+
+      if (msg?.type === 'progress') {
+        // 🔔 llegó un tick de progreso desde el worker
+        completedIterations += msg.inc || 1;
+        updateStatus();
+        return; // no cierres el worker todavía
+      }
+
+      if (msg?.type === 'result') {
+        const { energySum, losses } = msg;
+        for (let i = 0; i < Nc; i++) energyGlobal[i] += energySum[i];
+        for (let k = 0; k < losses.length; k++) lossesAll.push(losses[k]);
+        w.terminate();
+        resolve();
         return;
       }
+    };
+
+    w.onerror = (e) => { w.terminate(); reject(e?.message || e); };
+
+    // Inicializa el estado del status cuando arranca el primer worker
+    if (completedIterations === 0) {
+      statusEl.textContent = 'Progreso: 0%';
     }
 
-    // Particionamos en slabs (por z) y esferas (radio)
-    const slabIdx = [];
-    const spheres = []; // {index, radius, tipo}
-    for (let i = 0; i < Nc; i++) {
-      if (isSphericalRow(tipo[i])) {
-        spheres.push({ index: i, radius: z_end[i], tipo: tipo[i] });
-      } else {
-        slabIdx.push(i);
-      }
-    }
-    if (slabIdx.length === 0) {
-      salida.textContent = "Error: define al menos una capa 'slab' (tipo sin 'esfera'/'tumor').";
-      return;
-    }
-
-    // z_end estrictamente creciente solo entre slabs
-    for (let k = 1; k < slabIdx.length; k++) {
-      const a = z_end[slabIdx[k - 1]], b = z_end[slabIdx[k]];
-      if (!(b > a)) {
-        salida.textContent = "Error: z_end (cm) debe ser estrictamente creciente para las capas slab.";
-        return;
-      }
-    }
-
-    // Límite por z (cm) usando solo slabs
-    const z_bound_slab = new Float64Array(slabIdx.length + 1);
-    z_bound_slab[0] = 0.0;
-    for (let k = 0; k < slabIdx.length; k++) {
-      z_bound_slab[k + 1] = z_end[slabIdx[k]];
-    }
-
-    // Centro del tumor Z (cm) definido por el usuario
-    let tumorCenterZ = Number(theightEl?.value);
-    if (!Number.isFinite(tumorCenterZ)) tumorCenterZ = 0.15; // default MATLAB
-    const zMax = z_bound_slab[z_bound_slab.length - 1];
-    tumorCenterZ = Math.max(0, Math.min(zMax, tumorCenterZ)); // clamp al dominio
-
-    // NUEVO: leer X, Y (cm)
-    const tumorXEl = document.getElementById("tumorX");
-    const tumorYEl = document.getElementById("tumorY");
-    let tumorCenterX = Number(tumorXEl?.value);
-    let tumorCenterY = Number(tumorYEl?.value);
-    if (!Number.isFinite(tumorCenterX)) tumorCenterX = 0;
-    if (!Number.isFinite(tumorCenterY)) tumorCenterY = 0;
-    // clamp lateral al dominio
-    tumorCenterX = Math.max(-Rxy, Math.min(Rxy, tumorCenterX));
-    tumorCenterY = Math.max(-Rxy, Math.min(Rxy, tumorCenterY));
-
-    // Ordenamos esferas por radio ascendente (anidadas)
-    spheres.sort((a, b) => a.radius - b.radius);
-
-    // Albedo para todas las filas (slabs + esferas)
-    const albedo = new Float64Array(Nc);
-    for (let i = 0; i < Nc; i++) albedo[i] = mus[i] / (mus[i] + mua[i]);
-
-    // --- Simulación ---
-    const t0 = performance.now();
-
-    let energyT = 0.0;
-    let energy = [];
-    let energys = [];
-
-    let iter = document.getElementById("Nit").value;
-
-    for(let j = 0; j < iter; j++){
-      const sim = simulate(
-      N, mua, mus, g, albedo, z_bound_slab, Rxy,
-        {
-          center: [tumorCenterX, tumorCenterY, tumorCenterZ], // <--- X,Y,Z
-          spheres,
-          slabIdx
-        }
-      );
-
-      let energyTit = 0.0;
-      for (let i = 0; i < sim.length; i++){
-        energyTit += sim[i];
-        if(j != 0){
-          energy[i] += sim[i];
-        }
-      }
-      
-      energyT+=energyTit;
-
-      if(j == 0){
-        energy = sim;
-      }
-
-      energys.push((N - energyTit) / N);
-
-      console.log("ITERACION: ",j)
-      console.log((N - energyTit) / N);
-
-    }
-    energyT=energyT/iter;
-
-    const ic = intervaloConfianza(energys, 0.95);
-    console.log(ic)
-
-    energy.forEach((v,i)=>{
-      energy[i] = energy[i]/iter;
+    // Enviamos los datos al worker
+    w.postMessage({
+      N, iters: itersForThisWorker,
+      mua: Float64Array.from(mua),
+      mus: Float64Array.from(mus),
+      g:   Float64Array.from(g),
+      albedo: Float64Array.from(albedo),
+      z_bound_slab: Float64Array.from(z_bound_slab),
+      Rxy,
+      overlayCfg,
+      laser: { x: laserx, y: lasery, z: laserz }
     });
+  });
+}
 
-    const lost = (N - energyT) / N;
+const promises = [];
+for (let w = 0; w < hw; w++) {
+  const extra = remainder > 0 ? 1 : 0;
+  remainder -= extra;
+  const chunk = jobsPerWorker + extra;
+  if (chunk > 0) promises.push(runWorker(chunk));
+}
 
-    const t1 = performance.now();
+Promise.all(promises).then(() => {
+  const elapsed = (performance.now() - startTime) / 1000;
 
-    const elapsed = (t1 - t0) / 1000;
+  // ✅ Final: muestra 100%
+  completedIterations = totalIterations;
+  updateStatus();
 
+  // === Post-proceso igual que antes ===
+  const energy = new Float64Array(Nc);
+  for (let i = 0; i < Nc; i++) energy[i] = energyGlobal[i] / iter;
+
+  let energyT = 0;
+  for (let i = 0; i < Nc; i++) energyT += energy[i];
+
+  const ic = intervaloConfianza(lossesAll, 0.95);
+  const lost = (N - energyT) / N;
+
+    // === Render UI igual que antes ===
     let energyStr = "<ul>";
     let imax = energy.indexOf(Math.max(...Array.from(energy)));
     let imin = energy.indexOf(Math.min(...Array.from(energy)));
 
     for (let i = 0; i < energy.length; i++) {
       energyStr += "<li>";
-      if(i == imax){
+      if (i == imax) {
         energyStr += `<b>${tipo[i]}:</b> <i style='color:red'>${((energy[i]/energyT)*100).toFixed(3)}%</i>\n`;
-      }else if(i == imin){
+      } else if (i == imin) {
         energyStr += `<b>${tipo[i]}:</b> <i style='color:blue'>${((energy[i]/energyT)*100).toFixed(3)}%</i>\n`;
-      }else{
+      } else {
         energyStr += `<b>${tipo[i]}:</b> ${((energy[i]/energyT)*100).toFixed(3)}%\n`;
       }
       energyStr += "</li>";
     }
     energyStr += "</ul>";
+
+    const lambda = parseInt(document.getElementById("lambda")?.value);
+    let laserxV = parseFloat(document.getElementById("laserX").value);
+    let laseryV = parseFloat(document.getElementById("laserY").value);
+    let laserzV = parseFloat(document.getElementById("laserZ").value);
 
     const threePayload = {
       Rxy,
@@ -870,36 +927,45 @@ document.addEventListener("DOMContentLoaded", function () {
       tipo: Array.from(tipo),
       spheres: spheres.map(s => ({ index: s.index, radius: s.radius, tipo: s.tipo })),
       tumorCenterZ,
-      tumorCenterX,                // NUEVO
-      tumorCenterY,                // NUEVO
+      tumorCenterX,
+      tumorCenterY,
       energy: Array.from(energy),
-      tumorColor:0x005AD9,
-      energyloss:lost.toFixed(6),
-      lambda:parseInt(document.getElementById("lambda")?.value)
+      tumorColor: 0x005AD9,
+      energyloss: lost.toFixed(6),
+      lambda,
+      laserx: laserxV,
+      lasery: laseryV,
+      laserz: laserzV,
     };
-    
-    try{
+
+    try {
       open3DViewer(threePayload);
-    }catch{
+    } catch {
       alert("Tiempo de espera excesivo, no se pudo abrir la simulación 3D");
     }
 
     let timeString = "";
-    if(elapsed >= 60){
+    if (elapsed >= 60) {
       timeString = String((elapsed/60).toFixed(3)) + " min";
-    }else{
+    } else {
       timeString = elapsed.toFixed(3) + " s";
     }
 
     salida.innerHTML =
       "<b>Energy per layer: </b>\n" + energyStr +
       "<b>Total absorbed energy: </b>" + energyT.toFixed(6) + "\n\n" +
-      "<b>Total energy loss: </b><i style='color:red'>" + (lost * 100).toFixed(3) + " ± " +ic.errorPorcentual.toFixed(2) +"% [" + (ic.inferior*100).toFixed(2) +", "+(ic.superior*100).toFixed(2)+"]</i>\n\n" +
+      "<b>Total energy loss: </b><i style='color:red'>" +
+      (lost * 100).toFixed(3) + " ± " + ic.errorPorcentual.toFixed(2) +
+      "% [" + (ic.inferior*100).toFixed(2) + ", " + (ic.superior*100).toFixed(2) + "]</i>\n\n" +
       "<b>Time: </b>" + timeString;
 
-    // --- Dibujo (corte a escala) ---
+    // Dibujo (corte a escala), igual que antes
     renderEsquemaDesdeTabla(Rxy, tipo, z_end, tumorCenterZ, energy, tumorCenterX, tumorCenterY);
+  }).catch(err => {
+    alert("Error en simulación paralela: " + err);
   });
+});
+
 });
 
 // --- Cargar CSV y poblar tabla ---
